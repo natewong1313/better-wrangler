@@ -74,6 +74,8 @@ export function useDevtoolsSocket(): UseDevtoolsSocketResult {
     (namespace: string) => {
       setKvLoading(true);
       setKvError(null);
+      // Clear expanded values when switching/refreshing namespaces to prevent memory growth
+      setKvExpandedValues(new Map());
       sendMessage({
         type: "list-kv-entries",
         namespace,

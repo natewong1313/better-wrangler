@@ -44,10 +44,11 @@ export function KVPanel({
 }: KVPanelProps) {
   const refreshIntervalRef = useRef<number | null>(null);
 
-  // Handle escape key to close
+  // Handle escape key to close (but not when a dialog is open)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && isOpen) {
+      // Don't close panel if a dialog is open - let the dialog handle Escape
+      if (e.key === "Escape" && isOpen && !document.querySelector('[role="dialog"]')) {
         onClose();
       }
     };
