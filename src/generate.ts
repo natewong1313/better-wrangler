@@ -1,6 +1,7 @@
 import type { WorkerConfig, Bindings } from "./bindings/worker";
 import type { D1Binding } from "./bindings/d1";
 import type { DurableObjectBinding } from "./bindings/durable-object";
+import type { KVBinding } from "./bindings/kv";
 import type { R2Binding } from "./bindings/r2";
 
 type DurableObjectWranglerBinding = {
@@ -25,6 +26,7 @@ export type WranglerConfig = {
   };
   observability?: { enabled: boolean };
   d1_databases?: Array<{ binding: string; database_name: string }>;
+  kv_namespaces?: Array<{ binding: string; id: string }>;
   r2_buckets?: Array<{ binding: string; bucket_name: string }>;
   durable_objects?: {
     bindings: Array<DurableObjectWranglerBinding>;
@@ -63,6 +65,7 @@ export const generateWranglerConfig = <B extends Bindings>(
 
   if (worker.bindings) {
     const d1Bindings: WranglerConfig["d1_databases"] = [];
+    const kvBindings: WranglerConfig["kv_namespaces"] = [];
     const r2Bindings: WranglerConfig["r2_buckets"] = [];
     const doBindings: NonNullable<WranglerConfig["durable_objects"]>["bindings"] = [];
     const ownedDOClasses: string[] = [];
@@ -73,6 +76,9 @@ export const generateWranglerConfig = <B extends Bindings>(
       if (binding._type === "D1") {
         const d1 = binding as D1Binding;
         d1Bindings.push({ binding: key, database_name: d1.name });
+      } else if (binding._type === "KV") {
+        const kv = binding as KVBinding;
+        kvBindings.push({ binding: key, id: kv.name });
       } else if (binding._type === "R2") {
         const r2 = binding as R2Binding;
         r2Bindings.push({ binding: key, bucket_name: r2.name });
@@ -98,6 +104,7 @@ export const generateWranglerConfig = <B extends Bindings>(
     }
 
     if (d1Bindings.length > 0) config.d1_databases = d1Bindings;
+    if (kvBindings.length > 0) config.kv_namespaces = kvBindings;
     if (r2Bindings.length > 0) config.r2_buckets = r2Bindings;
     if (doBindings.length > 0) config.durable_objects = { bindings: doBindings };
 

@@ -3,6 +3,7 @@ import { generateWranglerConfig } from "../../src/generate";
 import { Worker } from "../../src/bindings/worker";
 import { D1 } from "../../src/bindings/d1";
 import { DurableObject } from "../../src/bindings/durable-object";
+import { KV } from "../../src/bindings/kv";
 
 describe("generateWranglerConfig", () => {
 	describe("basic configuration", () => {
@@ -331,6 +332,47 @@ describe("generateWranglerConfig", () => {
 		});
 	});
 
+	describe("KV bindings", () => {
+		it("generates kv_namespaces for KV bindings", () => {
+			const worker = Worker({
+				name: "my-worker",
+				entryPoint: "./src/my-worker/index.ts",
+				bindings: {
+					CACHE: KV({ name: "my-cache" }),
+				},
+			});
+
+			const config = generateWranglerConfig(worker);
+
+			expect(config.kv_namespaces).toEqual([
+				{ binding: "CACHE", id: "my-cache" },
+			]);
+		});
+
+		it("handles multiple KV bindings", () => {
+			const worker = Worker({
+				name: "my-worker",
+				entryPoint: "./src/my-worker/index.ts",
+				bindings: {
+					CACHE: KV({ name: "cache" }),
+					SESSIONS: KV({ name: "sessions" }),
+				},
+			});
+
+			const config = generateWranglerConfig(worker);
+
+			expect(config.kv_namespaces).toHaveLength(2);
+			expect(config.kv_namespaces).toContainEqual({
+				binding: "CACHE",
+				id: "cache",
+			});
+			expect(config.kv_namespaces).toContainEqual({
+				binding: "SESSIONS",
+				id: "sessions",
+			});
+		});
+	});
+
 	describe("mixed bindings", () => {
 		it("handles D1 and DurableObject bindings together", () => {
 			const worker = Worker({
@@ -394,6 +436,34 @@ describe("generateWranglerConfig", () => {
 			expect(config.services).toEqual([
 				{ binding: "__SERVICE_OTHER_WORKER__", service: "other-worker" },
 			]);
+		});
+
+		it("handles D1, KV, and DurableObject bindings together", () => {
+			const worker = Worker({
+				name: "my-worker",
+				entryPoint: "./src/my-worker/index.ts",
+				bindings: {
+					DB: D1({ name: "my-database" }),
+					CACHE: KV({ name: "my-cache" }),
+					MY_DO: DurableObject({
+						name: "MY_DO",
+						className: "MyDurableObject",
+						classPath: "./src/shared/my-do.ts",
+					}),
+				},
+			});
+
+			const config = generateWranglerConfig(worker);
+
+			expect(config.d1_databases).toEqual([
+				{ binding: "DB", database_name: "my-database" },
+			]);
+			expect(config.kv_namespaces).toEqual([
+				{ binding: "CACHE", id: "my-cache" },
+			]);
+			expect(config.durable_objects).toEqual({
+				bindings: [{ name: "MY_DO", class_name: "MyDurableObject" }],
+			});
 		});
 	});
 });

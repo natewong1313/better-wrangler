@@ -1,6 +1,7 @@
 import { type WorkerOptions } from "miniflare";
 import { D1Binding } from "../bindings/d1";
 import { DurableObjectBinding } from "../bindings/durable-object";
+import { KVBinding } from "../bindings/kv";
 import { R2Binding } from "../bindings/r2";
 import { WorkerConfig, Bindings } from "../bindings/worker";
 
@@ -33,6 +34,13 @@ export function buildWorkerOptions(
         options.d1Databases ??= {};
         // Use the database name as the ID (Miniflare will create a local SQLite file)
         options.d1Databases[key] = d1Binding.name;
+
+        break;
+      case "KV":
+        const kvBinding = binding as KVBinding;
+
+        options.kvNamespaces ??= {};
+        options.kvNamespaces[key] = kvBinding.name;
 
         break;
       case "R2":
