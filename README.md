@@ -113,6 +113,14 @@ Creates a D1 database binding.
 D1({ name: "my-database" })
 ```
 
+### `R2(options)`
+
+Creates an R2 bucket binding.
+
+```typescript
+R2({ name: "my-bucket" })
+```
+
 ### `DurableObject(options)`
 
 Creates a Durable Object binding.
@@ -133,8 +141,8 @@ Cross-worker Durable Objects are automatically configured when you reference ano
 |---------|--------|
 | D1 | ✅ Supported |
 | Durable Objects | ✅ Supported |
+| R2 | ✅ Supported |
 | KV | ❌ Not yet supported |
-| R2 | ❌ Not yet supported |
 | Queues | ❌ Not yet supported |
 | Hyperdrive | ❌ Not yet supported |
 | Workers AI | ❌ Not yet supported |

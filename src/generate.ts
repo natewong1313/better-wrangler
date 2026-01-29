@@ -1,6 +1,7 @@
 import type { WorkerConfig, Bindings } from "./bindings/worker";
 import type { D1Binding } from "./bindings/d1";
 import type { DurableObjectBinding } from "./bindings/durable-object";
+import type { R2Binding } from "./bindings/r2";
 
 type DurableObjectWranglerBinding = {
   name: string;
@@ -24,6 +25,7 @@ export type WranglerConfig = {
   };
   observability?: { enabled: boolean };
   d1_databases?: Array<{ binding: string; database_name: string }>;
+  r2_buckets?: Array<{ binding: string; bucket_name: string }>;
   durable_objects?: {
     bindings: Array<DurableObjectWranglerBinding>;
   };
@@ -61,6 +63,7 @@ export const generateWranglerConfig = <B extends Bindings>(
 
   if (worker.bindings) {
     const d1Bindings: WranglerConfig["d1_databases"] = [];
+    const r2Bindings: WranglerConfig["r2_buckets"] = [];
     const doBindings: NonNullable<WranglerConfig["durable_objects"]>["bindings"] = [];
     const ownedDOClasses: string[] = [];
     // Track external workers we need service bindings for (for cross-worker DO calls)
@@ -70,6 +73,9 @@ export const generateWranglerConfig = <B extends Bindings>(
       if (binding._type === "D1") {
         const d1 = binding as D1Binding;
         d1Bindings.push({ binding: key, database_name: d1.name });
+      } else if (binding._type === "R2") {
+        const r2 = binding as R2Binding;
+        r2Bindings.push({ binding: key, bucket_name: r2.name });
       } else if (binding._type === "DurableObject") {
         const doBind = binding as DurableObjectBinding;
         const doConfig: DurableObjectWranglerBinding = {
@@ -92,6 +98,7 @@ export const generateWranglerConfig = <B extends Bindings>(
     }
 
     if (d1Bindings.length > 0) config.d1_databases = d1Bindings;
+    if (r2Bindings.length > 0) config.r2_buckets = r2Bindings;
     if (doBindings.length > 0) config.durable_objects = { bindings: doBindings };
 
     // Auto-generate migrations for owned DOs only
