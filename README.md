@@ -2,7 +2,7 @@
 
 > Experimental - This tool is in early development and may change without notice.
 
-TypeScript-first configuration for Cloudflare Workers monorepos.
+TypeScript-first configuration for Cloudflare Workers monorepos. Inspired heavily by [alchemy](https://github.com/alchemy-run/alchemy) but intended to be a more lightweight and opinionated version
 
 ## Overview
 
