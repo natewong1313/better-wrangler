@@ -48,12 +48,24 @@ export async function runMiniflareDevMode(
     });
   });
 
-  const cleanup = async () => {
+  // Signal handlers don't properly await async functions, so we wrap the cleanup
+  // in a synchronous function that handles the async work and ensures exit
+  const cleanup = () => {
     watcher.stop();
-    if (devServer) {
-      await devServer.stop();
-    }
-    process.exit(0);
+
+    const doCleanup = async () => {
+      try {
+        if (devServer) {
+          await devServer.stop();
+        }
+      } catch (err) {
+        console.error("Error during cleanup:", err);
+      } finally {
+        process.exit(0);
+      }
+    };
+
+    doCleanup();
   };
 
   process.on("SIGINT", cleanup);
