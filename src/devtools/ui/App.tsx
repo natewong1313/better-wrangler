@@ -1,29 +1,46 @@
 import { useState } from "react";
 import { useDevtoolsSocket } from "@/hooks/useDevtoolsSocket";
-import { WorkerList } from "@/components/WorkerList";
-import { LogViewer } from "@/components/LogViewer";
+import { ResourceGraph } from "@/components/ResourceGraph";
+import { LogPanel } from "@/components/LogPanel";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { Button } from "@/components/ui/button";
 import type { LogLevel } from "../../../logger/utils";
 
 const ALL_LOG_LEVELS: LogLevel[] = ["debug", "info", "warn", "error"];
 
+type SelectedItem = {
+  type: "worker" | "durable-object";
+  name: string;
+} | null;
+
 export default function App() {
-  const { workers, logs, connected } = useDevtoolsSocket();
-  const [selectedWorker, setSelectedWorker] = useState<string | null>(null);
+  const { workers, sharedBindings, logs, connected } = useDevtoolsSocket();
+  const [selectedItem, setSelectedItem] = useState<SelectedItem>(null);
   const [enabledLevels, setEnabledLevels] = useState<Set<LogLevel>>(new Set(ALL_LOG_LEVELS));
 
+  // Filter logs based on selection
   const filteredLogs = logs.filter((log) => {
-    // Filter by worker if selected
-    if (selectedWorker && log.service !== selectedWorker) {
-      return false;
+    // Filter by selected item
+    if (selectedItem) {
+      if (selectedItem.type === "worker" && log.service !== selectedItem.name) {
+        return false;
+      }
+      if (selectedItem.type === "durable-object" && log.service !== selectedItem.name) {
+        return false;
+      }
     }
-    // Filter by log level
+    // Filter by level
     if (!enabledLevels.has(log.level)) {
       return false;
     }
     return true;
   });
+
+  // Get title for log panel
+  const panelTitle = selectedItem
+    ? selectedItem.type === "worker"
+      ? `${selectedItem.name} Logs`
+      : `${selectedItem.name} (DO) Logs`
+    : "";
 
   return (
     <div className="h-screen flex flex-col bg-background text-foreground">
@@ -41,43 +58,30 @@ export default function App() {
         </div>
       </header>
 
-      {/* Main content */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar */}
-        <aside className="w-64 border-r border-border bg-sidebar-background overflow-y-auto">
-          <div className="p-3 border-b border-border">
-            <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-              Workers
-            </h2>
-          </div>
-          <WorkerList
-            workers={workers}
-            selectedWorker={selectedWorker}
-            onSelectWorker={setSelectedWorker}
-          />
-        </aside>
+      {/* Main content - Graph View */}
+      <main className="flex-1 overflow-hidden">
+        <ResourceGraph
+          workers={workers}
+          sharedBindings={sharedBindings}
+          selectedItem={selectedItem}
+          onSelectItem={setSelectedItem}
+        />
+      </main>
 
-        {/* Log viewer */}
-        <main className="flex-1 flex flex-col overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-card">
-            <h2 className="text-sm font-medium text-muted-foreground">
-              Logs {selectedWorker && `- ${selectedWorker}`}
-            </h2>
-            <div className="flex items-center gap-2">
-              {selectedWorker && (
-                <Button variant="ghost" size="sm" onClick={() => setSelectedWorker(null)}>
-                  Clear filter
-                </Button>
-              )}
-            </div>
-          </div>
-          <LogViewer
-            logs={filteredLogs}
-            enabledLevels={enabledLevels}
-            onEnabledLevelsChange={setEnabledLevels}
-          />
-        </main>
-      </div>
+      {/* Log Panel (slides in from right) */}
+      <LogPanel
+        isOpen={selectedItem !== null}
+        title={panelTitle}
+        logs={filteredLogs}
+        enabledLevels={enabledLevels}
+        onEnabledLevelsChange={setEnabledLevels}
+        onClose={() => setSelectedItem(null)}
+      />
+
+      {/* Overlay when panel is open (for click-outside-to-close) */}
+      {selectedItem && (
+        <div className="fixed inset-0 bg-black/20 z-40" onClick={() => setSelectedItem(null)} />
+      )}
     </div>
   );
 }

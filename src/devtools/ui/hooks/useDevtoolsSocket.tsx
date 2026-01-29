@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import type { ServerMessage, WorkerInfo } from "../../server";
+import type { ServerMessage, WorkerInfo, SharedBinding } from "../../server";
 import type { LogEntry } from "../../../logger";
 
 declare const __DEVTOOLS_WS_PORT__: number;
@@ -9,12 +9,14 @@ const MAX_LOGS = 1000;
 
 type UseDevtoolsSocketResult = {
   workers: WorkerInfo[];
+  sharedBindings: SharedBinding[];
   logs: LogEntry[];
   connected: boolean;
 };
 
 export function useDevtoolsSocket(): UseDevtoolsSocketResult {
   const [workers, setWorkers] = useState<WorkerInfo[]>([]);
+  const [sharedBindings, setSharedBindings] = useState<SharedBinding[]>([]);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [connected, setConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
@@ -52,6 +54,7 @@ export function useDevtoolsSocket(): UseDevtoolsSocketResult {
         switch (message.type) {
           case "init":
             setWorkers(message.workers);
+            setSharedBindings(message.sharedBindings);
             setLogs(message.logs);
             break;
 
@@ -68,6 +71,7 @@ export function useDevtoolsSocket(): UseDevtoolsSocketResult {
 
           case "workers-updated":
             setWorkers(message.workers);
+            setSharedBindings(message.sharedBindings);
             break;
         }
       } catch {
@@ -89,5 +93,5 @@ export function useDevtoolsSocket(): UseDevtoolsSocketResult {
     };
   }, [connect]);
 
-  return { workers, logs, connected };
+  return { workers, sharedBindings, logs, connected };
 }

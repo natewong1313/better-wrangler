@@ -115,28 +115,35 @@ export function LogViewer({ logs, enabledLevels, onEnabledLevelsChange }: LogVie
       ) : (
         <ScrollArea className="flex-1">
           <div ref={containerRef} onScroll={handleScroll} className="font-mono text-sm">
-            {logs.map((log, index) => (
-              <div
-                key={index}
-                className={cn(
-                  "flex gap-3 px-4 py-1.5 hover:bg-accent/50",
-                  LEVEL_ROW_STYLES[log.level],
-                )}
-              >
-                <span className="text-muted-foreground shrink-0">{log.timestamp}</span>
-                <Badge
-                  variant="outline"
+            {logs.map((log, index) => {
+              // Format timestamp to just show time (HH:MM:SS)
+              const timeOnly = log.timestamp.includes(" ")
+                ? log.timestamp.split(" ").pop()
+                : log.timestamp;
+
+              return (
+                <div
+                  key={index}
                   className={cn(
-                    "border-0 uppercase w-14 justify-center shrink-0",
-                    LEVEL_BADGE_STYLES[log.level],
+                    "flex items-start gap-2 px-3 py-1 hover:bg-accent/50 text-xs",
+                    LEVEL_ROW_STYLES[log.level],
                   )}
                 >
-                  {log.level}
-                </Badge>
-                {log.service && <span className="text-primary shrink-0">[{log.service}]</span>}
-                <span className="break-all">{log.message}</span>
-              </div>
-            ))}
+                  <span className="text-muted-foreground shrink-0 tabular-nums">{timeOnly}</span>
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "border-0 uppercase text-[10px] px-1.5 py-0 h-4 shrink-0",
+                      LEVEL_BADGE_STYLES[log.level],
+                    )}
+                  >
+                    {log.level}
+                  </Badge>
+                  {log.service && <span className="text-primary shrink-0">[{log.service}]</span>}
+                  <span className="break-all flex-1 min-w-0">{log.message}</span>
+                </div>
+              );
+            })}
           </div>
         </ScrollArea>
       )}
