@@ -335,13 +335,25 @@ async function parseBody<T>(req: IncomingMessage): Promise<T> {
 
 /**
  * List all entries in a KV namespace with truncated values.
+ * Uses cursor-based pagination to fetch all keys.
  */
 async function listKVEntries(mf: Miniflare, kvName: string): Promise<KVEntry[]> {
   const kv = await mf.getKVNamespace(kvName);
-  const listResult = await kv.list();
+
+  // Fetch all keys using cursor-based pagination
+  const allKeys: typeof listResult.keys = [];
+  let cursor: string | undefined;
+  let listResult: Awaited<ReturnType<typeof kv.list>>;
+
+  do {
+    listResult = await kv.list({ cursor });
+    allKeys.push(...listResult.keys);
+    cursor = listResult.list_complete ? undefined : listResult.cursor;
+  } while (cursor);
+
   const entries: KVEntry[] = [];
 
-  for (const key of listResult.keys) {
+  for (const key of allKeys) {
     try {
       const valueWithMetadata = await kv.getWithMetadata(key.name, { type: "arrayBuffer" });
       const arrayBuffer = valueWithMetadata.value as ArrayBuffer | null;
