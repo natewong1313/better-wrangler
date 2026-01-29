@@ -249,7 +249,7 @@ export const testWorker = Worker({
 				bindings: [{ name: "MY_DO", class_name: "MyDurableObject" }],
 			});
 			expect(config.migrations).toEqual([
-				{ tag: "v1", new_classes: ["MyDurableObject"] },
+				{ tag: "v1", new_sqlite_classes: ["MyDurableObject"] },
 			]);
 		});
 	});

@@ -54,7 +54,7 @@ export const worker2 = Worker({
 				await readTempFile(tempDir, ".better-wrangler/worker-1.wrangler.jsonc")
 			);
 			expect(worker1Config.migrations).toEqual([
-				{ tag: "v1", new_classes: ["SharedDO"] },
+				{ tag: "v1", new_sqlite_classes: ["SharedDO"] },
 			]);
 			expect(worker1Config.services).toBeUndefined();
 
@@ -183,7 +183,7 @@ export const testWorker = Worker({
 				bindings: [{ name: "MY_DO", class_name: "MyDurableObject" }],
 			});
 			expect(config.migrations).toEqual([
-				{ tag: "v1", new_classes: ["MyDurableObject"] },
+				{ tag: "v1", new_sqlite_classes: ["MyDurableObject"] },
 			]);
 		});
 	});

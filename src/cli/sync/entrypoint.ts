@@ -101,7 +101,7 @@ export function generateWranglerConfigFile(
   worker: WorkerConfig<Bindings>,
   configPaths: Map<string, string>,
 ) {
-  const wranglerConfig = generateWranglerConfig(worker, {
+  const { config: wranglerConfig } = generateWranglerConfig(worker, {
     observability: { enabled: true },
     port: worker.port,
   });

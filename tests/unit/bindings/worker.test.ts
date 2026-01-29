@@ -153,4 +153,102 @@ describe("Worker", () => {
 			expect(config.bindings.MY_DO._owner).toBe("my-worker");
 		});
 	});
+
+	describe("vars configuration", () => {
+		it("includes vars in worker config", () => {
+			const config = Worker({
+				name: "my-worker",
+				entryPoint: "./src/my-worker/index.ts",
+				vars: {
+					API_URL: "https://api.example.com",
+					ENVIRONMENT: "production",
+				},
+			});
+
+			expect(config.vars).toEqual({
+				API_URL: "https://api.example.com",
+				ENVIRONMENT: "production",
+			});
+		});
+
+		it("defaults to empty object when vars not provided", () => {
+			const config = Worker({
+				name: "my-worker",
+				entryPoint: "./src/my-worker/index.ts",
+			});
+
+			expect(config.vars).toEqual({});
+		});
+	});
+
+	describe("triggers configuration", () => {
+		it("includes cron triggers in worker config", () => {
+			const config = Worker({
+				name: "my-worker",
+				entryPoint: "./src/my-worker/index.ts",
+				triggers: {
+					crons: ["0 * * * *", "0 0 * * *"],
+				},
+			});
+
+			expect(config.triggers).toEqual({
+				crons: ["0 * * * *", "0 0 * * *"],
+			});
+		});
+
+		it("handles empty crons array", () => {
+			const config = Worker({
+				name: "my-worker",
+				entryPoint: "./src/my-worker/index.ts",
+				triggers: {
+					crons: [],
+				},
+			});
+
+			expect(config.triggers?.crons).toEqual([]);
+		});
+	});
+
+	describe("compatibility configuration", () => {
+		it("includes compatibility date in worker config", () => {
+			const config = Worker({
+				name: "my-worker",
+				entryPoint: "./src/my-worker/index.ts",
+				compatibility: {
+					date: "2024-09-23",
+				},
+			});
+
+			expect(config.compatibility?.date).toBe("2024-09-23");
+		});
+
+		it("includes compatibility flags in worker config", () => {
+			const config = Worker({
+				name: "my-worker",
+				entryPoint: "./src/my-worker/index.ts",
+				compatibility: {
+					flags: ["nodejs_compat_v2", "streams_enable_constructors"],
+				},
+			});
+
+			expect(config.compatibility?.flags).toEqual([
+				"nodejs_compat_v2",
+				"streams_enable_constructors",
+			]);
+		});
+
+		it("includes both date and flags", () => {
+			const config = Worker({
+				name: "my-worker",
+				entryPoint: "./src/my-worker/index.ts",
+				compatibility: {
+					date: "2024-09-23",
+					flags: ["nodejs_compat_v2"],
+				},
+			});
+
+			expect(config.compatibility?.date).toBe("2024-09-23");
+			expect(config.compatibility?.flags).toEqual(["nodejs_compat_v2"]);
+		});
+	});
 });

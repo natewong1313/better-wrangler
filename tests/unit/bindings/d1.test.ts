@@ -27,4 +27,19 @@ describe("D1", () => {
 
 		expect(binding).toHaveProperty("_runtimeType");
 	});
+
+	it("stores database id when provided", () => {
+		const binding = D1({
+			name: "my-database",
+			id: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+		});
+
+		expect(binding.id).toBe("xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx");
+	});
+
+	it("id is undefined when not provided", () => {
+		const binding = D1({ name: "my-database" });
+
+		expect(binding.id).toBeUndefined();
+	});
 });

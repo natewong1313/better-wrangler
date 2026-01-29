@@ -13,7 +13,7 @@ describe("generateWranglerConfig", () => {
 				entryPoint: "./src/my-worker/index.ts",
 			});
 
-			const config = generateWranglerConfig(worker);
+			const { config } = generateWranglerConfig(worker);
 
 			expect(config.name).toBe("my-worker");
 			expect(config.main).toBe("./src/my-worker/index.ts");
@@ -25,7 +25,7 @@ describe("generateWranglerConfig", () => {
 				entryPoint: "./src/my-worker/index.ts",
 			});
 
-			const config = generateWranglerConfig(worker);
+			const { config } = generateWranglerConfig(worker);
 
 			expect(config.compatibility_date).toBe("2026-01-28");
 		});
@@ -36,7 +36,7 @@ describe("generateWranglerConfig", () => {
 				entryPoint: "./src/my-worker/index.ts",
 			});
 
-			const config = generateWranglerConfig(worker, {
+			const { config } = generateWranglerConfig(worker, {
 				compatibility_date: "2024-01-01",
 			});
 
@@ -51,7 +51,7 @@ describe("generateWranglerConfig", () => {
 				entryPoint: "./src/my-worker/index.ts",
 			});
 
-			const config = generateWranglerConfig(worker);
+			const { config } = generateWranglerConfig(worker);
 
 			expect(config.dev).toBeUndefined();
 		});
@@ -62,7 +62,7 @@ describe("generateWranglerConfig", () => {
 				entryPoint: "./src/my-worker/index.ts",
 			});
 
-			const config = generateWranglerConfig(worker, { port: 8787 });
+			const { config } = generateWranglerConfig(worker, { port: 8787 });
 
 			expect(config.dev).toEqual({ port: 8787 });
 		});
@@ -75,7 +75,7 @@ describe("generateWranglerConfig", () => {
 				entryPoint: "./src/my-worker/index.ts",
 			});
 
-			const config = generateWranglerConfig(worker);
+			const { config } = generateWranglerConfig(worker);
 
 			expect(config.observability).toBeUndefined();
 		});
@@ -86,7 +86,7 @@ describe("generateWranglerConfig", () => {
 				entryPoint: "./src/my-worker/index.ts",
 			});
 
-			const config = generateWranglerConfig(worker, {
+			const { config } = generateWranglerConfig(worker, {
 				observability: { enabled: true },
 			});
 
@@ -104,7 +104,7 @@ describe("generateWranglerConfig", () => {
 				},
 			});
 
-			const config = generateWranglerConfig(worker);
+			const { config } = generateWranglerConfig(worker);
 
 			expect(config.d1_databases).toEqual([
 				{ binding: "DB", database_name: "my-database" },
@@ -121,7 +121,7 @@ describe("generateWranglerConfig", () => {
 				},
 			});
 
-			const config = generateWranglerConfig(worker);
+			const { config } = generateWranglerConfig(worker);
 
 			expect(config.d1_databases).toHaveLength(2);
 			expect(config.d1_databases).toContainEqual({
@@ -149,14 +149,14 @@ describe("generateWranglerConfig", () => {
 				},
 			});
 
-			const config = generateWranglerConfig(worker);
+			const { config } = generateWranglerConfig(worker);
 
 			expect(config.durable_objects).toEqual({
 				bindings: [{ name: "MY_DO", class_name: "MyDurableObject" }],
 			});
 		});
 
-		it("generates migrations for owned DOs", () => {
+		it("generates migrations with new_sqlite_classes for owned DOs (default storage)", () => {
 			const worker = Worker({
 				name: "my-worker",
 				entryPoint: "./src/my-worker/index.ts",
@@ -169,7 +169,28 @@ describe("generateWranglerConfig", () => {
 				},
 			});
 
-			const config = generateWranglerConfig(worker);
+			const { config } = generateWranglerConfig(worker);
+
+			expect(config.migrations).toEqual([
+				{ tag: "v1", new_sqlite_classes: ["MyDurableObject"] },
+			]);
+		});
+
+		it("generates migrations with new_classes for kv storage DOs", () => {
+			const worker = Worker({
+				name: "my-worker",
+				entryPoint: "./src/my-worker/index.ts",
+				bindings: {
+					MY_DO: DurableObject({
+						name: "MY_DO",
+						className: "MyDurableObject",
+						classPath: "./src/shared/my-do.ts",
+						storage: "kv",
+					}),
+				},
+			});
+
+			const { config } = generateWranglerConfig(worker);
 
 			expect(config.migrations).toEqual([
 				{ tag: "v1", new_classes: ["MyDurableObject"] },
@@ -194,10 +215,41 @@ describe("generateWranglerConfig", () => {
 				},
 			});
 
-			const config = generateWranglerConfig(worker);
+			const { config } = generateWranglerConfig(worker);
 
 			expect(config.migrations).toEqual([
-				{ tag: "v1", new_classes: ["CounterDO", "SessionDO"] },
+				{ tag: "v1", new_sqlite_classes: ["CounterDO", "SessionDO"] },
+			]);
+		});
+
+		it("handles mixed sqlite and kv DOs in same migration", () => {
+			const worker = Worker({
+				name: "my-worker",
+				entryPoint: "./src/my-worker/index.ts",
+				bindings: {
+					SQLITE_DO: DurableObject({
+						name: "SQLITE_DO",
+						className: "SqliteDO",
+						classPath: "./src/dos/sqlite.ts",
+						storage: "sqlite",
+					}),
+					KV_DO: DurableObject({
+						name: "KV_DO",
+						className: "KvDO",
+						classPath: "./src/dos/kv.ts",
+						storage: "kv",
+					}),
+				},
+			});
+
+			const { config } = generateWranglerConfig(worker);
+
+			expect(config.migrations).toEqual([
+				{
+					tag: "v1",
+					new_sqlite_classes: ["SqliteDO"],
+					new_classes: ["KvDO"],
+				},
 			]);
 		});
 	});
@@ -219,7 +271,7 @@ describe("generateWranglerConfig", () => {
 				},
 			});
 
-			const config = generateWranglerConfig(worker);
+			const { config } = generateWranglerConfig(worker);
 
 			expect(config.durable_objects).toEqual({
 				bindings: [
@@ -248,7 +300,7 @@ describe("generateWranglerConfig", () => {
 				},
 			});
 
-			const config = generateWranglerConfig(worker);
+			const { config } = generateWranglerConfig(worker);
 
 			expect(config.migrations).toBeUndefined();
 		});
@@ -269,7 +321,7 @@ describe("generateWranglerConfig", () => {
 				},
 			});
 
-			const config = generateWranglerConfig(worker);
+			const { config } = generateWranglerConfig(worker);
 
 			expect(config.services).toEqual([
 				{ binding: "__SERVICE_OTHER_WORKER__", service: "other-worker" },
@@ -292,7 +344,7 @@ describe("generateWranglerConfig", () => {
 				},
 			});
 
-			const config = generateWranglerConfig(worker);
+			const { config } = generateWranglerConfig(worker);
 
 			expect(config.services).toEqual([
 				{ binding: "__SERVICE_MY_OTHER_WORKER__", service: "my-other-worker" },
@@ -323,7 +375,7 @@ describe("generateWranglerConfig", () => {
 				},
 			});
 
-			const config = generateWranglerConfig(worker);
+			const { config } = generateWranglerConfig(worker);
 
 			expect(config.services).toHaveLength(1);
 			expect(config.services).toEqual([
@@ -342,7 +394,7 @@ describe("generateWranglerConfig", () => {
 				},
 			});
 
-			const config = generateWranglerConfig(worker);
+			const { config } = generateWranglerConfig(worker);
 
 			expect(config.kv_namespaces).toEqual([
 				{ binding: "CACHE", id: "my-cache" },
@@ -359,7 +411,7 @@ describe("generateWranglerConfig", () => {
 				},
 			});
 
-			const config = generateWranglerConfig(worker);
+			const { config } = generateWranglerConfig(worker);
 
 			expect(config.kv_namespaces).toHaveLength(2);
 			expect(config.kv_namespaces).toContainEqual({
@@ -388,7 +440,7 @@ describe("generateWranglerConfig", () => {
 				},
 			});
 
-			const config = generateWranglerConfig(worker);
+			const { config } = generateWranglerConfig(worker);
 
 			expect(config.d1_databases).toEqual([
 				{ binding: "DB", database_name: "my-database" },
@@ -397,7 +449,7 @@ describe("generateWranglerConfig", () => {
 				bindings: [{ name: "MY_DO", class_name: "MyDurableObject" }],
 			});
 			expect(config.migrations).toEqual([
-				{ tag: "v1", new_classes: ["MyDurableObject"] },
+				{ tag: "v1", new_sqlite_classes: ["MyDurableObject"] },
 			]);
 		});
 
@@ -422,14 +474,14 @@ describe("generateWranglerConfig", () => {
 				},
 			});
 
-			const config = generateWranglerConfig(worker);
+			const { config } = generateWranglerConfig(worker);
 
 			// Should have both DO bindings
 			expect(config.durable_objects?.bindings).toHaveLength(2);
 
 			// Only local DO in migrations
 			expect(config.migrations).toEqual([
-				{ tag: "v1", new_classes: ["MyDurableObject"] },
+				{ tag: "v1", new_sqlite_classes: ["MyDurableObject"] },
 			]);
 
 			// Service binding for external worker
@@ -453,7 +505,7 @@ describe("generateWranglerConfig", () => {
 				},
 			});
 
-			const config = generateWranglerConfig(worker);
+			const { config } = generateWranglerConfig(worker);
 
 			expect(config.d1_databases).toEqual([
 				{ binding: "DB", database_name: "my-database" },
@@ -464,6 +516,242 @@ describe("generateWranglerConfig", () => {
 			expect(config.durable_objects).toEqual({
 				bindings: [{ name: "MY_DO", class_name: "MyDurableObject" }],
 			});
+		});
+	});
+
+	describe("vars configuration", () => {
+		it("generates vars in wrangler config", () => {
+			const worker = Worker({
+				name: "my-worker",
+				entryPoint: "./src/my-worker/index.ts",
+				vars: {
+					API_URL: "https://api.example.com",
+					ENVIRONMENT: "production",
+				},
+			});
+
+			const { config } = generateWranglerConfig(worker);
+
+			expect(config.vars).toEqual({
+				API_URL: "https://api.example.com",
+				ENVIRONMENT: "production",
+			});
+		});
+
+		it("does not include vars when empty", () => {
+			const worker = Worker({
+				name: "my-worker",
+				entryPoint: "./src/my-worker/index.ts",
+			});
+
+			const { config } = generateWranglerConfig(worker);
+
+			expect(config.vars).toBeUndefined();
+		});
+	});
+
+	describe("triggers configuration", () => {
+		it("generates triggers.crons in wrangler config", () => {
+			const worker = Worker({
+				name: "my-worker",
+				entryPoint: "./src/my-worker/index.ts",
+				triggers: {
+					crons: ["0 * * * *", "0 0 * * *"],
+				},
+			});
+
+			const { config } = generateWranglerConfig(worker);
+
+			expect(config.triggers).toEqual({
+				crons: ["0 * * * *", "0 0 * * *"],
+			});
+		});
+
+		it("does not include triggers when crons is empty", () => {
+			const worker = Worker({
+				name: "my-worker",
+				entryPoint: "./src/my-worker/index.ts",
+				triggers: {
+					crons: [],
+				},
+			});
+
+			const { config } = generateWranglerConfig(worker);
+
+			expect(config.triggers).toBeUndefined();
+		});
+
+		it("does not include triggers when not specified", () => {
+			const worker = Worker({
+				name: "my-worker",
+				entryPoint: "./src/my-worker/index.ts",
+			});
+
+			const { config } = generateWranglerConfig(worker);
+
+			expect(config.triggers).toBeUndefined();
+		});
+	});
+
+	describe("compatibility configuration", () => {
+		it("uses worker compatibility_date over options", () => {
+			const worker = Worker({
+				name: "my-worker",
+				entryPoint: "./src/my-worker/index.ts",
+				compatibility: {
+					date: "2024-09-23",
+				},
+			});
+
+			const { config } = generateWranglerConfig(worker, {
+				compatibility_date: "2026-01-01",
+			});
+
+			expect(config.compatibility_date).toBe("2024-09-23");
+		});
+
+		it("generates compatibility_flags in wrangler config", () => {
+			const worker = Worker({
+				name: "my-worker",
+				entryPoint: "./src/my-worker/index.ts",
+				compatibility: {
+					flags: ["nodejs_compat_v2", "streams_enable_constructors"],
+				},
+			});
+
+			const { config } = generateWranglerConfig(worker);
+
+			expect(config.compatibility_flags).toEqual([
+				"nodejs_compat_v2",
+				"streams_enable_constructors",
+			]);
+		});
+
+		it("does not include compatibility_flags when empty", () => {
+			const worker = Worker({
+				name: "my-worker",
+				entryPoint: "./src/my-worker/index.ts",
+				compatibility: {
+					flags: [],
+				},
+			});
+
+			const { config } = generateWranglerConfig(worker);
+
+			expect(config.compatibility_flags).toBeUndefined();
+		});
+
+		it("does not include compatibility_flags when not specified", () => {
+			const worker = Worker({
+				name: "my-worker",
+				entryPoint: "./src/my-worker/index.ts",
+			});
+
+			const { config } = generateWranglerConfig(worker);
+
+			expect(config.compatibility_flags).toBeUndefined();
+		});
+	});
+
+	describe("D1 with database_id", () => {
+		it("generates database_id when provided", () => {
+			const worker = Worker({
+				name: "my-worker",
+				entryPoint: "./src/my-worker/index.ts",
+				bindings: {
+					DB: D1({
+						name: "my-database",
+						id: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+					}),
+				},
+			});
+
+			const { config } = generateWranglerConfig(worker);
+
+			expect(config.d1_databases).toEqual([
+				{
+					binding: "DB",
+					database_name: "my-database",
+					database_id: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+				},
+			]);
+		});
+
+		it("does not include database_id when not provided", () => {
+			const worker = Worker({
+				name: "my-worker",
+				entryPoint: "./src/my-worker/index.ts",
+				bindings: {
+					DB: D1({ name: "my-database" }),
+				},
+			});
+
+			const { config } = generateWranglerConfig(worker);
+
+			expect(config.d1_databases).toEqual([
+				{ binding: "DB", database_name: "my-database" },
+			]);
+		});
+	});
+
+	describe("KV with id and preview_id", () => {
+		it("uses id when provided instead of name", () => {
+			const worker = Worker({
+				name: "my-worker",
+				entryPoint: "./src/my-worker/index.ts",
+				bindings: {
+					CACHE: KV({
+						name: "my-cache",
+						id: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+					}),
+				},
+			});
+
+			const { config } = generateWranglerConfig(worker);
+
+			expect(config.kv_namespaces).toEqual([
+				{ binding: "CACHE", id: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" },
+			]);
+		});
+
+		it("includes preview_id when provided", () => {
+			const worker = Worker({
+				name: "my-worker",
+				entryPoint: "./src/my-worker/index.ts",
+				bindings: {
+					CACHE: KV({
+						name: "my-cache",
+						id: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+						preview_id: "yyyyyyyy-yyyy-yyyy-yyyy-yyyyyyyyyyyy",
+					}),
+				},
+			});
+
+			const { config } = generateWranglerConfig(worker);
+
+			expect(config.kv_namespaces).toEqual([
+				{
+					binding: "CACHE",
+					id: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+					preview_id: "yyyyyyyy-yyyy-yyyy-yyyy-yyyyyyyyyyyy",
+				},
+			]);
+		});
+
+		it("falls back to name when id not provided", () => {
+			const worker = Worker({
+				name: "my-worker",
+				entryPoint: "./src/my-worker/index.ts",
+				bindings: {
+					CACHE: KV({ name: "my-cache" }),
+				},
+			});
+
+			const { config } = generateWranglerConfig(worker);
+
+			expect(config.kv_namespaces).toEqual([
+				{ binding: "CACHE", id: "my-cache" },
+			]);
 		});
 	});
 });

@@ -5,22 +5,30 @@ import { KVBinding } from "../bindings/kv";
 import { R2Binding } from "../bindings/r2";
 import { WorkerConfig, Bindings } from "../bindings/worker";
 
-/**
- * Converts our WorkerConfig into WorkerOptions for Miniflare
- */
 export function buildWorkerOptions(
-  worker: WorkerConfig<Bindings>,
+  worker: WorkerConfig<Bindings, Record<string, string>>,
   bundledScript: string,
   compatibilityDate: string,
 ): WorkerOptions {
+  const effectiveCompatDate = worker.compatibility?.date ?? compatibilityDate;
+  const effectiveCompatFlags = worker.compatibility?.flags ?? ["nodejs_compat"];
+
   const options: WorkerOptions = {
     name: worker.name,
     modules: true,
     script: bundledScript,
-    compatibilityDate,
-    compatibilityFlags: ["nodejs_compat"],
+    compatibilityDate: effectiveCompatDate,
+    compatibilityFlags: effectiveCompatFlags,
     routes: [`http://localhost/${worker.name}/*`],
   };
+
+  if (worker.vars && Object.keys(worker.vars).length > 0) {
+    options.bindings = { ...worker.vars };
+  }
+
+  if (worker.triggers?.crons && worker.triggers.crons.length > 0) {
+    options.crons = worker.triggers.crons;
+  }
 
   if (!worker.bindings) {
     return options;

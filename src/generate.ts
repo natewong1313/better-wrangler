@@ -53,8 +53,8 @@ export type GenerateResult = {
   updatedMigrationState?: MigrationState;
 };
 
-export const generateWranglerConfig = <B extends Bindings>(
-  worker: WorkerConfig<B, Record<string, string>>,
+export const generateWranglerConfig = <B extends Bindings, V extends Record<string, string>>(
+  worker: WorkerConfig<B, V>,
   options?: GenerateOptions,
 ): GenerateResult => {
   const config: WranglerConfig = {

@@ -27,4 +27,40 @@ describe("KV", () => {
 
 		expect(binding).toHaveProperty("_runtimeType");
 	});
+
+	it("stores id when provided", () => {
+		const binding = KV({
+			name: "my-namespace",
+			id: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+		});
+
+		expect(binding.id).toBe("xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx");
+	});
+
+	it("stores preview_id when provided", () => {
+		const binding = KV({
+			name: "my-namespace",
+			preview_id: "yyyyyyyy-yyyy-yyyy-yyyy-yyyyyyyyyyyy",
+		});
+
+		expect(binding.preview_id).toBe("yyyyyyyy-yyyy-yyyy-yyyy-yyyyyyyyyyyy");
+	});
+
+	it("stores both id and preview_id when provided", () => {
+		const binding = KV({
+			name: "my-namespace",
+			id: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+			preview_id: "yyyyyyyy-yyyy-yyyy-yyyy-yyyyyyyyyyyy",
+		});
+
+		expect(binding.id).toBe("xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx");
+		expect(binding.preview_id).toBe("yyyyyyyy-yyyy-yyyy-yyyy-yyyyyyyyyyyy");
+	});
+
+	it("id and preview_id are undefined when not provided", () => {
+		const binding = KV({ name: "my-namespace" });
+
+		expect(binding.id).toBeUndefined();
+		expect(binding.preview_id).toBeUndefined();
+	});
 });

@@ -2,17 +2,16 @@ import type { WorkerConfig, Bindings } from "../../src/bindings/worker";
 import type { D1Binding } from "../../src/bindings/d1";
 import type { DurableObjectBinding } from "../../src/bindings/durable-object";
 
-/**
- * Creates a basic worker configuration fixture
- */
-export function createWorkerFixture<B extends Bindings = Record<string, never>>(
-	overrides: Partial<WorkerConfig<B>> = {}
-): WorkerConfig<B> {
+export function createWorkerFixture<
+	B extends Bindings = Record<string, never>,
+	V extends Record<string, string> = Record<string, never>,
+>(overrides: Partial<WorkerConfig<B, V>> = {}): WorkerConfig<B, V> {
 	return {
 		name: "test-worker",
 		entryPoint: "./src/test-worker/index.ts",
 		bindings: {} as B,
-		Env: null as unknown as WorkerConfig<B>["Env"],
+		vars: {} as V,
+		Env: null as unknown as WorkerConfig<B, V>["Env"],
 		...overrides,
 	};
 }
@@ -36,7 +35,7 @@ export function createD1Fixture(
  * Creates a DurableObject binding fixture
  */
 export function createDOFixture(
-	overrides: Partial<DurableObjectBinding> = {}
+	overrides: Partial<DurableObjectBinding> = {},
 ): DurableObjectBinding {
 	return {
 		_type: "DurableObject",
@@ -45,6 +44,7 @@ export function createDOFixture(
 		name: "TEST_DO",
 		className: "TestDurableObject",
 		classPath: "./src/shared/test-do.ts",
+		storage: "sqlite",
 		...overrides,
 	};
 }

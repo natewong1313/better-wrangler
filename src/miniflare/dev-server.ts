@@ -51,7 +51,7 @@ type BundleState = {
  * This gives us the functionality to share a DO across workers and do other stuff that simply using wrangler doesn't give us the flexibility for
  */
 export async function startDevServer(
-  workers: WorkerConfig<Bindings>[],
+  workers: WorkerConfig<Bindings, Record<string, string>>[],
   entryPaths: Map<string, string>,
   options: DevServerOptions = {},
 ): Promise<DevServerResult> {
@@ -97,10 +97,7 @@ export async function startDevServer(
   };
 }
 
-/**
- * Validates that all workers have unique ports
- */
-function validateUniquePorts(workers: WorkerConfig<Bindings>[]) {
+function validateUniquePorts(workers: WorkerConfig<Bindings, Record<string, string>>[]) {
   const portToWorker = new Map<number, string>();
 
   for (const worker of workers) {
@@ -118,11 +115,8 @@ function validateUniquePorts(workers: WorkerConfig<Bindings>[]) {
   }
 }
 
-/**
- * Creates bundle contexts for all workers and collects initial scripts
- */
 async function createBundles(
-  workers: WorkerConfig<Bindings>[],
+  workers: WorkerConfig<Bindings, Record<string, string>>[],
   entryPaths: Map<string, string>,
   baseDir: string,
 ) {
@@ -144,12 +138,11 @@ async function createBundles(
 }
 
 /**
- * Sets up hot reload callbacks for all bundle contexts.
  * Uses a mutex to prevent concurrent rebuilds which can corrupt Miniflare state.
  */
 function setupHotReload(
   mf: Miniflare,
-  workers: WorkerConfig<Bindings>[],
+  workers: WorkerConfig<Bindings, Record<string, string>>[],
   bundleState: BundleState,
   buildAllWorkerOptions: () => WorkerOptions[],
 ) {
@@ -218,10 +211,10 @@ async function startWatching(bundleContexts: BundleContext[]) {
   await Promise.all(bundleContexts.map((ctx) => ctx.watch()));
 }
 
-/**
- * Creates HTTP proxy servers for all workers
- */
-async function createProxyServers(mf: Miniflare, workers: WorkerConfig<Bindings>[]) {
+async function createProxyServers(
+  mf: Miniflare,
+  workers: WorkerConfig<Bindings, Record<string, string>>[],
+) {
   const servers: Server[] = [];
   const urls = new Map<string, URL>();
 
