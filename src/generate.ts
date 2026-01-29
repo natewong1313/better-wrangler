@@ -48,7 +48,7 @@ export const generateWranglerConfig = <B extends Bindings>(
   const config: WranglerConfig = {
     name: worker.name,
     main: worker.entryPoint,
-    compatibility_date: options?.compatibility_date ?? "2025-01-28",
+    compatibility_date: options?.compatibility_date ?? "2026-01-28",
   };
 
   if (options?.port) {
