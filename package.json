@@ -45,7 +45,10 @@
 		"test:unit": "vitest run tests/unit",
 		"test:integration": "vitest run tests/integration",
 		"test:e2e": "vitest run tests/e2e",
-		"test:coverage": "vitest run --coverage"
+		"test:coverage": "vitest run --coverage",
+		"test:deployment": "vitest run --config tests/deployment/vitest.config.ts",
+		"ci:deploy": "bun run scripts/ci/deploy.ts",
+		"ci:cleanup": "bun run scripts/ci/cleanup.ts"
 	},
 	"devDependencies": {
 		"@cloudflare/workers-types": "^4.20260129.0",

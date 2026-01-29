@@ -165,3 +165,6 @@ dist
 .env*
 !.env.example
 .wrangler/
+
+# CI deployment metadata (generated during CI tests)
+.ci-deployment/
