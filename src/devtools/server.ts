@@ -117,6 +117,19 @@ function extractD1Bindings(workers: WorkerConfig<Bindings>[]): D1BindingInfoExte
 }
 
 /**
+ * Find the worker name that owns a D1 binding.
+ * Returns undefined if binding not found.
+ */
+function findWorkerForD1Binding(
+  bindingName: string,
+  workers: WorkerConfig<Bindings>[],
+): string | undefined {
+  const d1Bindings = extractD1Bindings(workers);
+  const binding = d1Bindings.find((b) => b.bindingName === bindingName);
+  return binding?.workerName;
+}
+
+/**
  * Extract binding info from worker config for the UI.
  */
 function extractWorkerInfo(
@@ -337,7 +350,8 @@ export async function startDevtoolsServer(
         }
 
         try {
-          const db = await miniflareInstance.getD1Database(bindingName);
+          const workerName = findWorkerForD1Binding(bindingName, currentRawWorkers);
+          const db = await miniflareInstance.getD1Database(bindingName, workerName);
           const result = await db
             .prepare(
               `SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' ORDER BY name`,
@@ -362,7 +376,8 @@ export async function startDevtoolsServer(
         }
 
         try {
-          const db = await miniflareInstance.getD1Database(bindingName);
+          const workerName = findWorkerForD1Binding(bindingName, currentRawWorkers);
+          const db = await miniflareInstance.getD1Database(bindingName, workerName);
           const result = await db.prepare(`PRAGMA table_info("${tableName}")`).all();
           sendJson(res, { columns: result.results });
         } catch (err) {
@@ -385,7 +400,8 @@ export async function startDevtoolsServer(
         }
 
         try {
-          const db = await miniflareInstance.getD1Database(bindingName);
+          const workerName = findWorkerForD1Binding(bindingName, currentRawWorkers);
+          const db = await miniflareInstance.getD1Database(bindingName, workerName);
 
           // Get total count
           const countResult = await db
@@ -430,7 +446,8 @@ export async function startDevtoolsServer(
             return;
           }
 
-          const db = await miniflareInstance.getD1Database(bindingName);
+          const workerName = findWorkerForD1Binding(bindingName, currentRawWorkers);
+          const db = await miniflareInstance.getD1Database(bindingName, workerName);
           const stmt = db.prepare(sql);
           const boundStmt = params.length > 0 ? stmt.bind(...params) : stmt;
 
