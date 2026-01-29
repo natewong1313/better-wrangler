@@ -1,0 +1,16 @@
+{
+  "name": "monorepo",
+  "scripts": {
+    "dev": "bun run ../../src/cli.ts dev",
+    "sync": "bun run ../../src/cli.ts sync",
+    "check-types": "tsc"
+  },
+  "dependencies": {
+    "better-wrangler": "../.."
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260129.0",
+    "@types/bun": "^1.3.7",
+    "typescript": "^5.5.2"
+  }
+}
