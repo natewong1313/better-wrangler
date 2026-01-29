@@ -121,6 +121,14 @@ Creates an R2 bucket binding.
 R2({ name: "my-bucket" })
 ```
 
+### `KV(options)`
+
+Creates a KV namespace binding.
+
+```typescript
+KV({ name: "my-kv-namespace" })
+```
+
 ### `DurableObject(options)`
 
 Creates a Durable Object binding.
@@ -142,7 +150,7 @@ Cross-worker Durable Objects are automatically configured when you reference ano
 | D1 | ✅ Supported |
 | Durable Objects | ✅ Supported |
 | R2 | ✅ Supported |
-| KV | ❌ Not yet supported |
+| KV | ✅ Supported |
 | Queues | ❌ Not yet supported |
 | Hyperdrive | ❌ Not yet supported |
 | Workers AI | ❌ Not yet supported |

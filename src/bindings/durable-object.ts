@@ -18,6 +18,17 @@ type DurableObjectProps<T extends AnyClass = AnyClass> = {
    */
   classPath: string;
   /**
+   * Storage backend for the Durable Object.
+   * - 'sqlite' (default): SQLite-backed storage with 10GB limit, supports SQL queries
+   * - 'kv': Legacy KV-backed storage with 128KB limit
+   */
+  storage?: "sqlite" | "kv";
+  /**
+   * If this DO was renamed from another class, specify the old class name here.
+   * This is only needed when auto-detection fails (e.g., class renamed AND file path changed).
+   */
+  _renamedFrom?: string;
+  /**
    * @deprecated Use className and classPath instead.
    * Optional: The actual class for TypeScript type inference only.
    * Not evaluated at runtime - CLI will import via classPath.
@@ -42,6 +53,14 @@ export type DurableObjectBinding<T extends AnyClass = AnyClass> = {
    * Used by CLI to auto-generate DO exports in wrapper entrypoint.
    */
   classPath: string;
+  /**
+   * Storage backend: 'sqlite' (default) or 'kv' (legacy)
+   */
+  storage: "sqlite" | "kv";
+  /**
+   * If this DO was renamed from another class name.
+   */
+  _renamedFrom?: string;
 };
 
 export const DurableObject = <T extends AnyClass = AnyClass>(
@@ -53,4 +72,6 @@ export const DurableObject = <T extends AnyClass = AnyClass>(
   name: props.name,
   className: props.className,
   classPath: props.classPath,
+  storage: props.storage ?? "sqlite",
+  _renamedFrom: props._renamedFrom,
 });

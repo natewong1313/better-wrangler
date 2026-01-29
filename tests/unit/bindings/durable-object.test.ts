@@ -34,6 +34,38 @@ describe("DurableObject", () => {
 
 			expect(binding).toHaveProperty("_runtimeType");
 		});
+
+		it("defaults storage to sqlite", () => {
+			const binding = DurableObject({
+				name: "MY_DO",
+				className: "MyDurableObject",
+				classPath: "./src/shared/my-do.ts",
+			});
+
+			expect(binding.storage).toBe("sqlite");
+		});
+
+		it("allows storage to be set to kv", () => {
+			const binding = DurableObject({
+				name: "MY_DO",
+				className: "MyDurableObject",
+				classPath: "./src/shared/my-do.ts",
+				storage: "kv",
+			});
+
+			expect(binding.storage).toBe("kv");
+		});
+
+		it("allows _renamedFrom to be specified", () => {
+			const binding = DurableObject({
+				name: "MY_DO",
+				className: "MyDurableObjectV2",
+				classPath: "./src/shared/my-do.ts",
+				_renamedFrom: "MyDurableObject",
+			});
+
+			expect(binding._renamedFrom).toBe("MyDurableObject");
+		});
 	});
 
 	describe("_owner property", () => {

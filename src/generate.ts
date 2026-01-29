@@ -3,6 +3,12 @@ import type { D1Binding } from "./bindings/d1";
 import type { DurableObjectBinding } from "./bindings/durable-object";
 import type { KVBinding } from "./bindings/kv";
 import type { R2Binding } from "./bindings/r2";
+import {
+  type MigrationState,
+  type WranglerMigration,
+  computeMigrations,
+  MigrationValidationError,
+} from "./migrations";
 
 type DurableObjectWranglerBinding = {
   name: string;
@@ -10,32 +16,24 @@ type DurableObjectWranglerBinding = {
   script_name?: string;
 };
 
-type WranglerMigration = {
-  tag: string;
-  new_classes?: string[];
-  renamed_classes?: Array<{ from: string; to: string }>;
-  deleted_classes?: string[];
-};
-
 export type WranglerConfig = {
   name: string;
   main: string;
   compatibility_date: string;
+  compatibility_flags?: string[];
+  vars?: Record<string, string>;
+  triggers?: { crons: string[] };
   dev?: {
     port?: number;
   };
   observability?: { enabled: boolean };
-  d1_databases?: Array<{ binding: string; database_name: string }>;
-  kv_namespaces?: Array<{ binding: string; id: string }>;
+  d1_databases?: Array<{ binding: string; database_name: string; database_id?: string }>;
+  kv_namespaces?: Array<{ binding: string; id: string; preview_id?: string }>;
   r2_buckets?: Array<{ binding: string; bucket_name: string }>;
   durable_objects?: {
     bindings: Array<DurableObjectWranglerBinding>;
   };
   migrations?: WranglerMigration[];
-  /**
-   * Service bindings for cross-worker communication.
-   * Required in multi-process dev mode for cross-worker DO calls.
-   */
   services?: Array<{ binding: string; service: string }>;
 };
 
@@ -43,17 +41,39 @@ export type GenerateOptions = {
   compatibility_date?: string;
   observability?: { enabled: boolean };
   port?: number;
+  /** Migration state - if not provided, migrations won't be auto-managed */
+  migrationState?: MigrationState;
+  /** Explicitly deleted DO classes (for ambiguous removal cases) */
+  deletedDurableObjects?: string[];
+};
+
+export type GenerateResult = {
+  config: WranglerConfig;
+  /** Updated migration state (if migrationState was provided) */
+  updatedMigrationState?: MigrationState;
 };
 
 export const generateWranglerConfig = <B extends Bindings>(
-  worker: WorkerConfig<B>,
+  worker: WorkerConfig<B, Record<string, string>>,
   options?: GenerateOptions,
-): WranglerConfig => {
+): GenerateResult => {
   const config: WranglerConfig = {
     name: worker.name,
     main: worker.entryPoint,
-    compatibility_date: options?.compatibility_date ?? "2026-01-28",
+    compatibility_date: worker.compatibility?.date ?? options?.compatibility_date ?? "2026-01-28",
   };
+
+  if (worker.compatibility?.flags && worker.compatibility.flags.length > 0) {
+    config.compatibility_flags = worker.compatibility.flags;
+  }
+
+  if (worker.vars && Object.keys(worker.vars).length > 0) {
+    config.vars = worker.vars;
+  }
+
+  if (worker.triggers?.crons && worker.triggers.crons.length > 0) {
+    config.triggers = { crons: worker.triggers.crons };
+  }
 
   if (options?.port) {
     config.dev = { port: options.port };
@@ -63,22 +83,38 @@ export const generateWranglerConfig = <B extends Bindings>(
     config.observability = options.observability;
   }
 
+  let updatedMigrationState: MigrationState | undefined;
+
   if (worker.bindings) {
     const d1Bindings: WranglerConfig["d1_databases"] = [];
     const kvBindings: WranglerConfig["kv_namespaces"] = [];
     const r2Bindings: WranglerConfig["r2_buckets"] = [];
     const doBindings: NonNullable<WranglerConfig["durable_objects"]>["bindings"] = [];
-    const ownedDOClasses: string[] = [];
+    const ownedDOs: DurableObjectBinding[] = [];
     // Track external workers we need service bindings for (for cross-worker DO calls)
     const externalWorkers = new Set<string>();
 
     for (const [key, binding] of Object.entries(worker.bindings)) {
       if (binding._type === "D1") {
         const d1 = binding as D1Binding;
-        d1Bindings.push({ binding: key, database_name: d1.name });
+        const d1Config: { binding: string; database_name: string; database_id?: string } = {
+          binding: key,
+          database_name: d1.name,
+        };
+        if (d1.id) {
+          d1Config.database_id = d1.id;
+        }
+        d1Bindings.push(d1Config);
       } else if (binding._type === "KV") {
         const kv = binding as KVBinding;
-        kvBindings.push({ binding: key, id: kv.name });
+        const kvConfig: { binding: string; id: string; preview_id?: string } = {
+          binding: key,
+          id: kv.id ?? kv.name,
+        };
+        if (kv.preview_id) {
+          kvConfig.preview_id = kv.preview_id;
+        }
+        kvBindings.push(kvConfig);
       } else if (binding._type === "R2") {
         const r2 = binding as R2Binding;
         r2Bindings.push({ binding: key, bucket_name: r2.name });
@@ -95,8 +131,8 @@ export const generateWranglerConfig = <B extends Bindings>(
           // Track that we need a service binding to this worker
           externalWorkers.add(doBind._owner);
         } else if (doBind._owner === worker.name) {
-          // This worker owns this DO - needs migration
-          ownedDOClasses.push(doBind.className);
+          // This worker owns this DO - collect for migration
+          ownedDOs.push(doBind);
         }
 
         doBindings.push(doConfig);
@@ -108,14 +144,39 @@ export const generateWranglerConfig = <B extends Bindings>(
     if (r2Bindings.length > 0) config.r2_buckets = r2Bindings;
     if (doBindings.length > 0) config.durable_objects = { bindings: doBindings };
 
-    // Auto-generate migrations for owned DOs only
-    if (ownedDOClasses.length > 0) {
-      config.migrations = [
-        {
-          tag: "v1",
-          new_classes: ownedDOClasses,
-        },
-      ];
+    // Auto-generate migrations for owned DOs
+    if (ownedDOs.length > 0) {
+      if (options?.migrationState) {
+        // Use state-based migration management
+        const result = computeMigrations(
+          worker.name,
+          ownedDOs,
+          options.migrationState,
+          options.deletedDurableObjects ?? [],
+        );
+
+        if (result.errors.length > 0) {
+          throw new MigrationValidationError(result.errors);
+        }
+
+        if (result.migrations.length > 0) {
+          config.migrations = result.migrations;
+        }
+        updatedMigrationState = result.updatedState;
+      } else {
+        // Fallback: simple migration without state management
+        // Separate by storage type
+        const sqliteClasses = ownedDOs
+          .filter((d) => d.storage === "sqlite")
+          .map((d) => d.className);
+        const kvClasses = ownedDOs.filter((d) => d.storage === "kv").map((d) => d.className);
+
+        const migration: WranglerMigration = { tag: "v1" };
+        if (sqliteClasses.length > 0) migration.new_sqlite_classes = sqliteClasses;
+        if (kvClasses.length > 0) migration.new_classes = kvClasses;
+
+        config.migrations = [migration];
+      }
     }
 
     // Generate service bindings for external workers (needed for cross-worker DO calls in multi-process dev)
@@ -127,5 +188,5 @@ export const generateWranglerConfig = <B extends Bindings>(
     }
   }
 
-  return config;
+  return { config, updatedMigrationState };
 };
