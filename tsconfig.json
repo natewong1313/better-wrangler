@@ -42,6 +42,6 @@
       "@cloudflare/workers-types"
 		]
 	},
-	"exclude": ["test"],
-	"include": ["src/**/*.ts"]
+	"exclude": [],
+	"include": ["src/**/*.ts", "tests/**/*.ts"]
 }
