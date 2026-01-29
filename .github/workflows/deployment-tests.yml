@@ -1,0 +1,114 @@
+name: Deployment Tests
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      example:
+        description: 'Specific example to test (leave empty for all)'
+        required: false
+        type: choice
+        options:
+          - ''
+          - kv-cache
+          - r2-storage
+          - monorepo
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deployment-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+jobs:
+  deploy-and-test:
+    name: ${{ matrix.example }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        example: [kv-cache, r2-storage, monorepo]
+
+    # Skip examples not matching the manually selected one (if any)
+    if: github.event.inputs.example == '' || github.event.inputs.example == matrix.example
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate secrets
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::error::CLOUDFLARE_API_TOKEN secret is not set"
+            exit 1
+          fi
+          if [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::error::CLOUDFLARE_ACCOUNT_ID secret is not set"
+            exit 1
+          fi
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.1.42"
+
+      - name: Cache Bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lockb') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build CLI
+        run: bun run build
+
+      - name: Deploy example
+        id: deploy
+        run: bun run ci:deploy ${{ matrix.example }}
+        env:
+          CI_RUN_ID: ${{ github.run_id }}
+
+      - name: Run deployment tests
+        run: bun run test:deployment ${{ matrix.example }}
+        env:
+          CI_RUN_ID: ${{ github.run_id }}
+
+      - name: Cleanup resources
+        if: always()
+        run: bun run ci:cleanup ${{ matrix.example }}
+        env:
+          CI_RUN_ID: ${{ github.run_id }}
+
+  # Summary job to report overall status
+  deployment-tests-summary:
+    name: Summary
+    runs-on: ubuntu-latest
+    needs: deploy-and-test
+    if: always()
+    steps:
+      - name: Check results
+        run: |
+          echo "Matrix job result: ${{ needs.deploy-and-test.result }}"
+          if [ "${{ needs.deploy-and-test.result }}" == "success" ]; then
+            echo "All deployment tests passed!"
+            exit 0
+          elif [ "${{ needs.deploy-and-test.result }}" == "skipped" ]; then
+            echo "Deployment tests were skipped"
+            exit 0
+          else
+            echo "::error::Some deployment tests failed. Check individual job logs."
+            exit 1
+          fi
