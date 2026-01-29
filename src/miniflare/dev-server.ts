@@ -142,7 +142,8 @@ async function createBundles(
 }
 
 /**
- * Sets up hot reload callbacks for all bundle contexts
+ * Sets up hot reload callbacks for all bundle contexts.
+ * Uses a mutex to prevent concurrent rebuilds which can corrupt Miniflare state.
  */
 function setupHotReload(
   mf: Miniflare,
@@ -152,30 +153,56 @@ function setupHotReload(
 ) {
   const { bundledScripts, bundleContexts } = bundleState;
 
+  // Mutex to prevent concurrent rebuilds
+  let rebuildInProgress = false;
+  // Track pending rebuilds per worker (only keep latest)
+  const pendingRebuilds = new Map<string, string>();
+
+  const processRebuild = async (workerName: string, script: string) => {
+    if (rebuildInProgress) {
+      // Queue this rebuild, replacing any previous pending for this worker
+      pendingRebuilds.set(workerName, script);
+      return;
+    }
+
+    rebuildInProgress = true;
+    const start = performance.now();
+
+    try {
+      // Update the script for this worker
+      bundledScripts.set(workerName, script);
+
+      // Rebuild all worker options and hot-swap via setOptions
+      await mf.setOptions({
+        workers: buildAllWorkerOptions(),
+      });
+
+      // Wait for Miniflare to be ready after setOptions
+      await mf.ready;
+
+      const elapsed = (performance.now() - start).toFixed(0);
+      console.log(`Rebuilt ${workerName} in ${elapsed}ms`);
+    } catch (error) {
+      console.error(`Failed to hot reload ${workerName}:`, error);
+    } finally {
+      rebuildInProgress = false;
+
+      // Process any pending rebuilds (take the first one, others will re-queue)
+      if (pendingRebuilds.size > 0) {
+        const [[nextWorker, nextScript]] = pendingRebuilds.entries();
+        pendingRebuilds.delete(nextWorker);
+        // Process asynchronously to avoid stack growth
+        setImmediate(() => processRebuild(nextWorker, nextScript));
+      }
+    }
+  };
+
   for (let i = 0; i < workers.length; i++) {
     const worker = workers[i];
     const bundleContext = bundleContexts[i];
 
     bundleContext.setOnRebuild(async (newScript: string) => {
-      const start = performance.now();
-
-      // Update the script for this worker
-      bundledScripts.set(worker.name, newScript);
-
-      // Rebuild all worker options and hot-swap via setOptions
-      try {
-        await mf.setOptions({
-          workers: buildAllWorkerOptions(),
-        });
-
-        // Wait for Miniflare to be ready after setOptions
-        await mf.ready;
-
-        const elapsed = (performance.now() - start).toFixed(0);
-        console.log(`Rebuilt ${worker.name} in ${elapsed}ms`);
-      } catch (error) {
-        console.error(`Failed to hot reload ${worker.name}:`, error);
-      }
+      await processRebuild(worker.name, newScript);
     });
   }
 }
