@@ -1,0 +1,8 @@
+{
+	"$schema": "https://raw.githubusercontent.com/nicolo-ribaudo/oxc-project.github.io/nicolo/oxfmt-schema/src/docs/guide/usage/.oxfmtrc.schema.json",
+	"indentStyle": "tab",
+	"indentWidth": 2,
+	"lineWidth": 100,
+	"quoteStyle": "double",
+	"trailingCommas": "all"
+}
