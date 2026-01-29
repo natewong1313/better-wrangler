@@ -12,31 +12,17 @@ export function isWorkerConfig(value: unknown): value is WorkerConfig<Bindings> 
 }
 
 /**
- * Clears cached modules to force re-import of config files.
- * Required for watch mode to pick up config changes.
- */
-export function bustModuleCache() {
-  const keysToDelete = Object.keys(require.cache).filter(
-    (k) =>
-      k.includes("bw.config") ||
-      k.includes("better-wrangler.config") ||
-      k.includes("better-wrangler/"),
-  );
-  for (const key of keysToDelete) {
-    delete require.cache[key];
-  }
-}
-
-/**
  * Dynamically imports the config file and extracts all WorkerConfig exports.
  * Returns workers sorted with primary worker first.
+ *
+ * Note: ESM modules are cached by URL. When bustCache is true, we append
+ * a timestamp query parameter to force Node.js to re-import the module.
  */
 export async function loadWorkerConfigs(configPath: string, bustCache = false) {
-  if (bustCache) {
-    bustModuleCache();
-  }
+  // ESM modules are cached by URL - add timestamp query param to bust cache
+  const importPath = bustCache ? `${configPath}?update=${Date.now()}` : configPath;
 
-  const configModule = await import(configPath);
+  const configModule = await import(importPath);
 
   const workers = Object.values(configModule).filter(
     isWorkerConfig,
