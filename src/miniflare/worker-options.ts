@@ -6,6 +6,23 @@ import { QueueProducerBinding, QueueConsumerBinding } from "../bindings/queue";
 import { R2Binding } from "../bindings/r2";
 import { WorkerConfig, Bindings } from "../bindings/worker";
 
+const ensureRecord = <T extends Record<string, unknown>>(
+  value: Record<string, unknown> | string[] | undefined,
+): T => (value && !Array.isArray(value) ? (value as T) : ({} as T));
+
+type QueueProducerOptions = {
+  queueName: string;
+  deliveryDelay?: number;
+};
+
+type QueueConsumerOptions = {
+  maxBatchSize?: number;
+  maxBatchTimeout?: number;
+  maxRetries?: number;
+  deadLetterQueue?: string;
+  retryDelay?: number;
+};
+
 export function buildWorkerOptions(
   worker: WorkerConfig<Bindings, Record<string, string>>,
   bundledScript: string,
@@ -27,10 +44,6 @@ export function buildWorkerOptions(
     options.bindings = { ...worker.vars };
   }
 
-  if (worker.triggers?.crons && worker.triggers.crons.length > 0) {
-    options.crons = worker.triggers.crons;
-  }
-
   if (!worker.bindings) {
     return options;
   }
@@ -40,23 +53,29 @@ export function buildWorkerOptions(
       case "D1":
         const d1Binding = binding as D1Binding;
 
-        options.d1Databases ??= {};
+        const d1Databases = (options.d1Databases = ensureRecord<Record<string, string>>(
+          options.d1Databases,
+        ));
         // Use the database name as the ID (Miniflare will create a local SQLite file)
-        options.d1Databases[key] = d1Binding.name;
+        d1Databases[key] = d1Binding.name;
 
         break;
       case "KV":
         const kvBinding = binding as KVBinding;
 
-        options.kvNamespaces ??= {};
-        options.kvNamespaces[key] = kvBinding.name;
+        const kvNamespaces = (options.kvNamespaces = ensureRecord<Record<string, string>>(
+          options.kvNamespaces,
+        ));
+        kvNamespaces[key] = kvBinding.name;
 
         break;
       case "R2":
         const r2Binding = binding as R2Binding;
 
-        options.r2Buckets ??= {};
-        options.r2Buckets[key] = r2Binding.name;
+        const r2Buckets = (options.r2Buckets = ensureRecord<Record<string, string>>(
+          options.r2Buckets,
+        ));
+        r2Buckets[key] = r2Binding.name;
 
         break;
       case "DurableObject":
@@ -77,8 +96,10 @@ export function buildWorkerOptions(
       case "QueueProducer":
         const queueProducerBinding = binding as QueueProducerBinding;
 
-        options.queueProducers ??= {};
-        options.queueProducers[key] = {
+        const queueProducers = (options.queueProducers = ensureRecord<
+          Record<string, QueueProducerOptions>
+        >(options.queueProducers));
+        queueProducers[key] = {
           queueName: queueProducerBinding.queue,
           ...(queueProducerBinding.deliveryDelay !== undefined && {
             deliveryDelay: queueProducerBinding.deliveryDelay,
@@ -89,8 +110,10 @@ export function buildWorkerOptions(
       case "QueueConsumer":
         const queueConsumerBinding = binding as QueueConsumerBinding;
 
-        options.queueConsumers ??= {};
-        options.queueConsumers[queueConsumerBinding.queue] = {
+        const queueConsumers = (options.queueConsumers = ensureRecord<
+          Record<string, QueueConsumerOptions>
+        >(options.queueConsumers));
+        queueConsumers[queueConsumerBinding.queue] = {
           ...(queueConsumerBinding.maxBatchSize !== undefined && {
             maxBatchSize: queueConsumerBinding.maxBatchSize,
           }),
