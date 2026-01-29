@@ -80,7 +80,7 @@ export function KVPanel({
   return (
     <div
       className={cn(
-        "fixed top-0 right-0 h-full w-[700px] bg-background border-l border-border shadow-lg transform transition-transform duration-200 ease-in-out z-50",
+        "fixed top-0 right-0 h-full w-full sm:w-[700px] max-w-[90vw] bg-background border-l border-border shadow-lg transform transition-transform duration-200 ease-in-out z-50",
         isOpen ? "translate-x-0" : "translate-x-full",
       )}
     >

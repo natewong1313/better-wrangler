@@ -163,7 +163,13 @@ export function KVViewer({
             className="pl-8"
           />
         </div>
-        <Button variant="outline" size="icon" onClick={onRefresh} disabled={loading}>
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={onRefresh}
+          disabled={loading}
+          aria-label="Refresh entries"
+        >
           <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
         </Button>
         <Button onClick={() => setDialogOpen(true)}>
@@ -218,6 +224,7 @@ export function KVViewer({
                           size="icon"
                           className="h-6 w-6"
                           onClick={() => handleToggleExpand(entry.key)}
+                          aria-label={isExpanded ? "Collapse value" : "Expand value"}
                         >
                           {isExpanded ? (
                             <ChevronDown className="h-3 w-3" />
@@ -255,6 +262,7 @@ export function KVViewer({
                           size="icon"
                           className="h-7 w-7"
                           onClick={() => handleEdit(entry)}
+                          aria-label="Edit entry"
                         >
                           <Pencil className="h-3.5 w-3.5" />
                         </Button>
@@ -263,6 +271,7 @@ export function KVViewer({
                           size="icon"
                           className="h-7 w-7 text-destructive hover:text-destructive"
                           onClick={() => setDeleteConfirm(entry.key)}
+                          aria-label="Delete entry"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>

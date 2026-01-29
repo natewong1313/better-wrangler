@@ -26,6 +26,7 @@ export function KVEntryDialog({ open, entry, initialValue, onSave, onClose }: KV
   const [metadata, setMetadata] = useState("");
   const [ttl, setTtl] = useState("");
   const [metadataError, setMetadataError] = useState<string | null>(null);
+  const [ttlError, setTtlError] = useState<string | null>(null);
 
   const isEditing = entry !== null;
 
@@ -45,6 +46,7 @@ export function KVEntryDialog({ open, entry, initialValue, onSave, onClose }: KV
         setTtl("");
       }
       setMetadataError(null);
+      setTtlError(null);
     }
   }, [open, entry, initialValue]);
 
@@ -71,8 +73,10 @@ export function KVEntryDialog({ open, entry, initialValue, onSave, onClose }: KV
     // Parse TTL if provided
     const parsedTtl = ttl.trim() ? parseInt(ttl, 10) : undefined;
     if (ttl.trim() && (isNaN(parsedTtl!) || parsedTtl! <= 0)) {
+      setTtlError("TTL must be a positive number");
       return;
     }
+    setTtlError(null);
 
     onSave(key, value, parsedMetadata, parsedTtl);
   };
@@ -144,10 +148,14 @@ export function KVEntryDialog({ open, entry, initialValue, onSave, onClose }: KV
               id="ttl"
               type="number"
               value={ttl}
-              onChange={(e) => setTtl(e.target.value)}
+              onChange={(e) => {
+                setTtl(e.target.value);
+                setTtlError(null);
+              }}
               placeholder="3600"
               min={1}
             />
+            {ttlError && <p className="text-sm text-destructive">{ttlError}</p>}
             <p className="text-xs text-muted-foreground">
               Time-to-live in seconds. Leave empty for no expiration.
             </p>
