@@ -50,7 +50,9 @@ export async function createWorkerProxy(
             : undefined,
       });
 
-      // Call the miniflare workers fetch handler
+      // Call the miniflare worker's fetch handler
+      // Type assertion needed: bridging Web API Request to Miniflare's Request type
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const response = await mfWorker.fetch(request as any);
 
       res.statusCode = response.status;
@@ -60,6 +62,8 @@ export async function createWorkerProxy(
 
       // We stream the response body instead of buffering
       if (response.body) {
+        // Type assertion needed: bridging Miniflare's ReadableStream to Web API ReadableStream
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const readable = Readable.fromWeb(response.body as any);
         readable.pipe(res);
       } else {

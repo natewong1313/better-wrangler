@@ -35,7 +35,7 @@ export function buildWorkerOptions(
 
         break;
       case "DurableObject":
-        const doBinding = binding as DurableObjectBinding<any>;
+        const doBinding = binding as DurableObjectBinding;
 
         const doConfig: { className: string; scriptName?: string } = {
           className: doBinding.className,

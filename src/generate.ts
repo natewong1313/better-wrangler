@@ -73,7 +73,7 @@ export const generateWranglerConfig = <B extends Bindings>(
         const d1 = binding as D1Binding;
         d1Bindings.push({ binding: key, database_name: d1.name });
       } else if (binding._type === "DurableObject") {
-        const doBind = binding as DurableObjectBinding<any>;
+        const doBind = binding as DurableObjectBinding;
         const doConfig: DurableObjectWranglerBinding = {
           name: key,
           class_name: doBind.className,
