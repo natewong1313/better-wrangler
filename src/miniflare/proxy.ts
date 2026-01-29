@@ -1,6 +1,7 @@
 import { createServer, type Server } from "http";
 import { Readable } from "stream";
 import type { Miniflare } from "miniflare";
+import { createLogger } from "../logger";
 
 export type WorkerProxy = {
   server: Server;
@@ -70,7 +71,8 @@ export async function createWorkerProxy(
         res.end();
       }
     } catch (error) {
-      console.error(`Error handling request to ${workerName}:`, error);
+      const log = createLogger(workerName);
+      log.error("Error handling request:", error);
       res.statusCode = 500;
       // Don't expose error details to clients
       res.end("Internal Server Error");
@@ -94,7 +96,8 @@ export async function createWorkerProxy(
 
   // Add runtime error handler (after successful listen)
   server.on("error", (err) => {
-    console.error(`Server error for ${workerName}:`, err);
+    const log = createLogger(workerName);
+    log.error("Server error:", err);
   });
 
   return {

@@ -2,6 +2,9 @@ import type { SyncResult } from "../types";
 import { startWranglerProcesses, killAllProcesses } from "../utils/process";
 import { syncAll } from "../sync";
 import { ConfigWatcher } from "./watcher";
+import { createLogger } from "../../logger";
+
+const log = createLogger("legacy");
 
 /**
  * Runs dev mode using separate wrangler processes per worker.
@@ -12,10 +15,8 @@ export async function runLegacyDevMode(
   workerFilter: string[],
   initialSyncResult: SyncResult,
 ) {
-  console.log("\nStarting dev mode with legacy wrangler processes...");
-  console.log(
-    "NOTE: Cross-worker Durable Objects will NOT work in this mode.\n",
-  );
+  log.info("Starting dev mode with legacy wrangler processes...");
+  log.warn("Cross-worker Durable Objects will NOT work in this mode.");
 
   let syncResult = initialSyncResult;
   let wranglerProcesses = startWranglerProcesses(
@@ -28,7 +29,7 @@ export async function runLegacyDevMode(
   watcher.start(async () => {
     syncResult = await syncAll(configPath, workerFilter, true);
 
-    console.log("Restarting wrangler processes...\n");
+    log.info("Restarting wrangler processes...");
     killAllProcesses(wranglerProcesses);
     wranglerProcesses = startWranglerProcesses(
       syncResult.workers,

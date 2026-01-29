@@ -1,7 +1,9 @@
 import { spawn, type ChildProcess } from "child_process";
 import type { WorkerConfig, Bindings } from "../types";
+import { createLogger } from "../../logger";
 
 const INSPECTOR_PORT_BASE = 9229;
+const log = createLogger("wrangler");
 
 /**
  * Validates that a worker name contains only safe characters.
@@ -25,7 +27,7 @@ export function startWranglerProcesses(
     a.name.localeCompare(b.name),
   );
 
-  console.log("Starting workers in separate wrangler processes");
+  log.info("Starting workers in separate wrangler processes");
 
   sortedWorkers.forEach((worker, index) => {
     validateWorkerName(worker.name);
@@ -41,9 +43,8 @@ export function startWranglerProcesses(
       String(inspectorPort),
     ];
 
-    console.log(
-      `${worker.name}: http://localhost:${worker.port} (inspector @ ${inspectorPort})`,
-    );
+    const workerLog = createLogger(worker.name);
+    workerLog.info(`http://localhost:${worker.port} (inspector @ ${inspectorPort})`);
 
     const proc = spawn("npx", args, {
       stdio: "inherit",

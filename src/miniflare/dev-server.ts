@@ -4,6 +4,7 @@ import type { WorkerConfig, Bindings } from "../bindings/worker";
 import { createBundleContext, type BundleContext } from "./bundle";
 import { buildWorkerOptions } from "./worker-options";
 import { createWorkerProxy } from "./proxy";
+import { createLogger } from "../logger";
 
 const LATEST_COMPAT_DATE = "2026-01-20";
 const DEFAULT_PORT = 8787;
@@ -84,7 +85,8 @@ export async function startDevServer(
   const { servers, urls } = await createProxyServers(mf, workers);
 
   for (const worker of workers) {
-    console.log(`${worker.name} running at ${urls.get(worker.name)}`);
+    const workerLog = createLogger(worker.name);
+    workerLog.info(`Running at ${urls.get(worker.name)}`);
   }
 
   return {
@@ -181,9 +183,11 @@ function setupHotReload(
       await mf.ready;
 
       const elapsed = (performance.now() - start).toFixed(0);
-      console.log(`Rebuilt ${workerName} in ${elapsed}ms`);
+      const workerLog = createLogger(workerName);
+      workerLog.info(`Rebuilt in ${elapsed}ms`);
     } catch (error) {
-      console.error(`Failed to hot reload ${workerName}:`, error);
+      const workerLog = createLogger(workerName);
+      workerLog.error("Failed to hot reload:", error);
     } finally {
       rebuildInProgress = false;
 
@@ -243,7 +247,8 @@ function createStopFunction(
   servers: Server[],
 ) {
   return async () => {
-    console.log(`Stopping ${servers.length} server(s)`);
+    const log = createLogger("miniflare");
+    log.info(`Stopping ${servers.length} server(s)`);
 
     // Cleanup esbuild
     await Promise.all(bundleContexts.map((ctx) => ctx.dispose()));

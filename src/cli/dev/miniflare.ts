@@ -2,6 +2,9 @@ import type { SyncResult, WorkerConfig, Bindings } from "../types";
 import { startDevServer, type DevServerResult } from "../../miniflare/dev-server";
 import { syncAll } from "../sync";
 import { ConfigWatcher } from "./watcher";
+import { createLogger } from "../../logger";
+
+const log = createLogger("miniflare");
 
 function buildEntryPaths(workers: WorkerConfig<Bindings>[]) {
   const entryPaths = new Map<string, string>();
@@ -20,9 +23,7 @@ export async function runMiniflareDevMode(
   workerFilter: string[],
   initialSyncResult: SyncResult,
 ) {
-  console.log(
-    "\nStarting dev server with Miniflare (cross-worker DO enabled)...\n",
-  );
+  log.info("Starting dev server with Miniflare (cross-worker DO enabled)...");
 
   let syncResult = initialSyncResult;
   let entryPaths = buildEntryPaths(syncResult.workers);
@@ -39,7 +40,7 @@ export async function runMiniflareDevMode(
     syncResult = await syncAll(configPath, workerFilter, true);
     entryPaths = buildEntryPaths(syncResult.workers);
 
-    console.log("Restarting Miniflare...\n");
+    log.info("Restarting Miniflare...");
     if (devServer) {
       await devServer.stop();
     }
@@ -59,7 +60,7 @@ export async function runMiniflareDevMode(
           await devServer.stop();
         }
       } catch (err) {
-        console.error("Error during cleanup:", err);
+        log.error("Error during cleanup:", err);
       } finally {
         process.exit(0);
       }

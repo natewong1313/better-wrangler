@@ -1,6 +1,8 @@
 import { watch, type FSWatcher } from "fs";
+import { createLogger } from "../../logger";
 
 const DEBOUNCE_MS = 100;
+const log = createLogger("config-watcher");
 
 /**
  * Watches a config file for changes and triggers a callback with debouncing.
@@ -15,7 +17,7 @@ export class ConfigWatcher {
   constructor(private configPath: string) {}
 
   start(onChange: () => Promise<void>) {
-    console.log(`Watching ${this.configPath} for changes`);
+    log.debug(`Watching ${this.configPath} for changes`);
 
     this.watcher = watch(this.configPath, async (eventType) => {
       if (eventType === "change") {
@@ -24,16 +26,16 @@ export class ConfigWatcher {
         this.debounceTimer = setTimeout(async () => {
           // Skip if already processing - the ongoing process will pick up file changes
           if (this.isProcessing) {
-            console.log("Config change detected, but rebuild already in progress");
+            log.debug("Config change detected, but rebuild already in progress");
             return;
           }
 
           this.isProcessing = true;
-          console.log("Config changed, regenerating");
+          log.info("Config changed, regenerating");
           try {
             await onChange();
           } catch (err) {
-            console.error("Error regenerating config:", err);
+            log.error("Error regenerating config:", err);
           } finally {
             this.isProcessing = false;
           }

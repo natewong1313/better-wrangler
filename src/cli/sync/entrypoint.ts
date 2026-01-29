@@ -3,8 +3,10 @@ import { relative, resolve } from "path";
 import type { WorkerConfig, Bindings } from "../types";
 import type { DurableObjectBinding } from "../../bindings/durable-object";
 import { generateWranglerConfig } from "../../generate";
+import { createLogger } from "../../logger";
 
 const OUTPUT_DIR = ".better-wrangler";
+const log = createLogger("sync");
 
 /**
  * Validates that a path doesn't escape the project directory and doesn't contain
@@ -100,7 +102,7 @@ export function generateEntrypoint(worker: WorkerConfig<Bindings>) {
 
   const entryPath = `${OUTPUT_DIR}/${worker.name}.entry.ts`;
   writeFileSync(entryPath, lines.join("\n") + "\n");
-  console.log(`Generated ${entryPath}`);
+  log.debug(`Generated ${entryPath}`);
 
   return entryPath;
 }
@@ -121,5 +123,5 @@ export function generateWranglerConfigFile(
   writeFileSync(configOutputPath, JSON.stringify(wranglerConfig, null, "\t"));
   configPaths.set(worker.name, configOutputPath);
 
-  console.log(`Generated ${configOutputPath}`);
+  log.debug(`Generated ${configOutputPath}`);
 }
