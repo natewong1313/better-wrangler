@@ -36,8 +36,10 @@
 		"vitest": "^4.0.18"
 	},
 	"dependencies": {
+		"@inquirer/prompts": "^8.2.0",
 		"esbuild": "^0.27.2",
 		"miniflare": "^4.20260124.0",
+		"ts-morph": "^27.0.2",
 		"wrangler": "^4.61.0"
 	}
 }
