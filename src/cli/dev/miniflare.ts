@@ -3,6 +3,7 @@ import { startDevServer, type DevServerResult } from "../../miniflare/dev-server
 import { syncAll } from "../sync";
 import { ConfigWatcher } from "./watcher";
 import { createLogger } from "../../logger";
+import { startDevtools, type DevtoolsResult } from "../../devtools";
 
 const log = createLogger("miniflare");
 
@@ -32,6 +33,15 @@ export async function runMiniflareDevMode(
     baseDir: process.cwd(),
   });
 
+  // Start devtools UI
+  let devtools: DevtoolsResult | null = null;
+  try {
+    devtools = await startDevtools(syncResult.workers, devServer.urls);
+    log.info(`Devtools: ${devtools.url}`);
+  } catch (err) {
+    log.warn("Failed to start devtools:", err);
+  }
+
   const watcher = new ConfigWatcher(configPath);
 
   watcher.start(async () => {
@@ -45,6 +55,11 @@ export async function runMiniflareDevMode(
     devServer = await startDevServer(syncResult.workers, entryPaths, {
       baseDir: process.cwd(),
     });
+
+    // Update devtools with new workers
+    if (devtools) {
+      devtools.updateWorkers(syncResult.workers, devServer.urls);
+    }
   });
 
   // Signal handlers don't properly await async functions, so we wrap the cleanup
@@ -54,6 +69,9 @@ export async function runMiniflareDevMode(
 
     const doCleanup = async () => {
       try {
+        if (devtools) {
+          await devtools.stop();
+        }
         if (devServer) {
           await devServer.stop();
         }
