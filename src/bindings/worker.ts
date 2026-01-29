@@ -45,9 +45,7 @@ export type WorkerConfig<B extends Bindings> = WorkerProps<B> & {
  *
  * If a DO binding is declared without an owner we auto assign it
  */
-export const Worker = <B extends Bindings>(
-  props: WorkerProps<B>,
-): WorkerConfig<B> => {
+export const Worker = <B extends Bindings>(props: WorkerProps<B>): WorkerConfig<B> => {
   const ownedBindings = props.bindings
     ? (Object.fromEntries(
         Object.entries(props.bindings).map(([key, binding]) => {

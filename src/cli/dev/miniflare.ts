@@ -28,11 +28,9 @@ export async function runMiniflareDevMode(
   let syncResult = initialSyncResult;
   let entryPaths = buildEntryPaths(syncResult.workers);
 
-  let devServer: DevServerResult | null = await startDevServer(
-    syncResult.workers,
-    entryPaths,
-    { baseDir: process.cwd() },
-  );
+  let devServer: DevServerResult | null = await startDevServer(syncResult.workers, entryPaths, {
+    baseDir: process.cwd(),
+  });
 
   const watcher = new ConfigWatcher(configPath);
 

@@ -24,14 +24,10 @@ export async function loadWorkerConfigs(configPath: string, bustCache = false) {
 
   const configModule = await import(importPath);
 
-  const workers = Object.values(configModule).filter(
-    isWorkerConfig,
-  ) as WorkerConfig<Bindings>[];
+  const workers = Object.values(configModule).filter(isWorkerConfig) as WorkerConfig<Bindings>[];
 
   if (workers.length === 0) {
-    throw new Error(
-      "No workers found in config file. Export WorkerConfig objects.",
-    );
+    throw new Error("No workers found in config file. Export WorkerConfig objects.");
   }
 
   // Sort workers so primary worker comes first (gets root route in Miniflare)
@@ -44,10 +40,7 @@ export async function loadWorkerConfigs(configPath: string, bustCache = false) {
   return workers;
 }
 
-export function filterWorkers(
-  workers: WorkerConfig<Bindings>[],
-  workerFilter: string[],
-) {
+export function filterWorkers(workers: WorkerConfig<Bindings>[], workerFilter: string[]) {
   if (workerFilter.length === 0) {
     return workers;
   }

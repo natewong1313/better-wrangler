@@ -23,9 +23,7 @@ export function startWranglerProcesses(
 ) {
   const processes = new Map<string, ChildProcess>();
 
-  const sortedWorkers = [...workers].sort((a, b) =>
-    a.name.localeCompare(b.name),
-  );
+  const sortedWorkers = [...workers].sort((a, b) => a.name.localeCompare(b.name));
 
   log.info("Starting workers in separate wrangler processes");
 
@@ -34,14 +32,7 @@ export function startWranglerProcesses(
     const configPath = configPaths.get(worker.name)!;
     const inspectorPort = INSPECTOR_PORT_BASE + index;
 
-    const args = [
-      "wrangler",
-      "dev",
-      "-c",
-      configPath,
-      "--inspector-port",
-      String(inspectorPort),
-    ];
+    const args = ["wrangler", "dev", "-c", configPath, "--inspector-port", String(inspectorPort)];
 
     const workerLog = createLogger(worker.name);
     workerLog.info(`http://localhost:${worker.port} (inspector @ ${inspectorPort})`);

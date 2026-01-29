@@ -1,10 +1,6 @@
 import { mkdirSync } from "fs";
 import type { SyncResult } from "../types";
-import {
-  loadWorkerConfigs,
-  filterWorkers,
-  validateWorkers,
-} from "./config-loader";
+import { loadWorkerConfigs, filterWorkers, validateWorkers } from "./config-loader";
 import { generateEntrypoint, generateWranglerConfigFile } from "./entrypoint";
 
 const OUTPUT_DIR = ".better-wrangler";

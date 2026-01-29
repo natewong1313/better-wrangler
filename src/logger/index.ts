@@ -89,5 +89,4 @@ export class Logger {
 export const logger = new Logger();
 
 // Factory function for creating service-scoped loggers
-export const createLogger = (name: string, id?: string): Logger =>
-  logger.forService(name, id);
+export const createLogger = (name: string, id?: string): Logger => logger.forService(name, id);

@@ -221,10 +221,7 @@ async function startWatching(bundleContexts: BundleContext[]) {
 /**
  * Creates HTTP proxy servers for all workers
  */
-async function createProxyServers(
-  mf: Miniflare,
-  workers: WorkerConfig<Bindings>[],
-) {
+async function createProxyServers(mf: Miniflare, workers: WorkerConfig<Bindings>[]) {
   const servers: Server[] = [];
   const urls = new Map<string, URL>();
 
@@ -241,11 +238,7 @@ async function createProxyServers(
 /**
  * Creates a stop function that cleans up all resources
  */
-function createStopFunction(
-  mf: Miniflare,
-  bundleContexts: BundleContext[],
-  servers: Server[],
-) {
+function createStopFunction(mf: Miniflare, bundleContexts: BundleContext[], servers: Server[]) {
   return async () => {
     const log = createLogger("miniflare");
     log.info(`Stopping ${servers.length} server(s)`);

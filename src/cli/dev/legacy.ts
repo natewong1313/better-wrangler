@@ -19,10 +19,7 @@ export async function runLegacyDevMode(
   log.warn("Cross-worker Durable Objects will NOT work in this mode.");
 
   let syncResult = initialSyncResult;
-  let wranglerProcesses = startWranglerProcesses(
-    syncResult.workers,
-    syncResult.configPaths,
-  );
+  let wranglerProcesses = startWranglerProcesses(syncResult.workers, syncResult.configPaths);
 
   const watcher = new ConfigWatcher(configPath);
 
@@ -31,10 +28,7 @@ export async function runLegacyDevMode(
 
     log.info("Restarting wrangler processes...");
     killAllProcesses(wranglerProcesses);
-    wranglerProcesses = startWranglerProcesses(
-      syncResult.workers,
-      syncResult.configPaths,
-    );
+    wranglerProcesses = startWranglerProcesses(syncResult.workers, syncResult.configPaths);
   });
 
   const cleanup = () => {

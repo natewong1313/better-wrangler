@@ -61,9 +61,7 @@ export const generateWranglerConfig = <B extends Bindings>(
 
   if (worker.bindings) {
     const d1Bindings: WranglerConfig["d1_databases"] = [];
-    const doBindings: NonNullable<
-      WranglerConfig["durable_objects"]
-    >["bindings"] = [];
+    const doBindings: NonNullable<WranglerConfig["durable_objects"]>["bindings"] = [];
     const ownedDOClasses: string[] = [];
     // Track external workers we need service bindings for (for cross-worker DO calls)
     const externalWorkers = new Set<string>();
@@ -94,8 +92,7 @@ export const generateWranglerConfig = <B extends Bindings>(
     }
 
     if (d1Bindings.length > 0) config.d1_databases = d1Bindings;
-    if (doBindings.length > 0)
-      config.durable_objects = { bindings: doBindings };
+    if (doBindings.length > 0) config.durable_objects = { bindings: doBindings };
 
     // Auto-generate migrations for owned DOs only
     if (ownedDOClasses.length > 0) {

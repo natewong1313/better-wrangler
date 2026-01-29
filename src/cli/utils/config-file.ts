@@ -11,7 +11,5 @@ export async function findConfigFile() {
       return path;
     }
   }
-  throw new Error(
-    `No config file found. Create one of: ${CONFIG_FILENAMES.join(", ")}`,
-  );
+  throw new Error(`No config file found. Create one of: ${CONFIG_FILENAMES.join(", ")}`);
 }

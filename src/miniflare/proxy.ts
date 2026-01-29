@@ -26,8 +26,7 @@ export async function createWorkerProxy(
       for await (const chunk of req) {
         bodyChunks.push(chunk);
       }
-      const body =
-        bodyChunks.length > 0 ? Buffer.concat(bodyChunks) : undefined;
+      const body = bodyChunks.length > 0 ? Buffer.concat(bodyChunks) : undefined;
 
       const headers = new Headers();
       for (const [key, value] of Object.entries(req.headers)) {
@@ -45,10 +44,7 @@ export async function createWorkerProxy(
       const request = new Request(url.toString(), {
         method: req.method,
         headers,
-        body:
-          body && req.method !== "GET" && req.method !== "HEAD"
-            ? body
-            : undefined,
+        body: body && req.method !== "GET" && req.method !== "HEAD" ? body : undefined,
       });
 
       // Call the miniflare worker's fetch handler
