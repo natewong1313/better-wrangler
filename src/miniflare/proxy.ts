@@ -68,15 +68,29 @@ export async function createWorkerProxy(
     } catch (error) {
       console.error(`Error handling request to ${workerName}:`, error);
       res.statusCode = 500;
-      res.end(`Internal Server Error: ${error}`);
+      // Don't expose error details to clients
+      res.end("Internal Server Error");
     }
   });
 
+  // Set up server with proper error handler lifecycle
   await new Promise<void>((resolve, reject) => {
-    server.on("error", reject);
-    server.listen(port, "127.0.0.1", () => {
+    const onError = (err: Error) => {
+      server.removeListener("listening", onListening);
+      reject(err);
+    };
+    const onListening = () => {
+      server.removeListener("error", onError);
       resolve();
-    });
+    };
+    server.once("error", onError);
+    server.once("listening", onListening);
+    server.listen(port, "127.0.0.1");
+  });
+
+  // Add runtime error handler (after successful listen)
+  server.on("error", (err) => {
+    console.error(`Server error for ${workerName}:`, err);
   });
 
   return {
