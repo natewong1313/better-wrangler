@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { useDevtoolsSocket } from "@/hooks/useDevtoolsSocket";
 import { ResourceGraph } from "@/components/ResourceGraph";
 import { LogPanel } from "@/components/LogPanel";
@@ -47,13 +47,6 @@ export default function App() {
       listKvEntries(selectedItem.name);
     }
   }, [selectedItem, listKvEntries]);
-
-  // Auto-load KV entries when a KV namespace is selected and connected
-  useEffect(() => {
-    if (connected && selectedItem?.type === "kv") {
-      listKvEntries(selectedItem.name);
-    }
-  }, [connected, selectedItem, listKvEntries]);
 
   const handleKvGetValue = useCallback(
     (key: string) => {

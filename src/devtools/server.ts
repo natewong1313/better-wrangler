@@ -74,7 +74,13 @@ export type ServerMessage =
   | { type: "kv-namespaces"; namespaces: KVNamespaceInfo[] }
   | { type: "kv-entries"; namespace: string; entries: KVEntry[] }
   | { type: "kv-entry-value"; namespace: string; key: string; value: string }
-  | { type: "kv-operation-result"; operation: string; success: boolean; error?: string };
+  | {
+      type: "kv-operation-result";
+      operationId: string;
+      operation: string;
+      success: boolean;
+      error?: string;
+    };
 
 /**
  * Messages sent from client to server.
@@ -84,13 +90,14 @@ export type ClientMessage =
   | { type: "get-kv-value"; namespace: string; key: string }
   | {
       type: "put-kv-entry";
+      operationId: string;
       namespace: string;
       key: string;
       value: string;
       metadata?: unknown;
       expirationTtl?: number;
     }
-  | { type: "delete-kv-entry"; namespace: string; key: string };
+  | { type: "delete-kv-entry"; operationId: string; namespace: string; key: string };
 
 /**
  * D1 binding info with database name
@@ -426,9 +433,13 @@ async function handleClientMessage(
   mf: Miniflare | null,
   kvNamespaces: KVNamespaceInfo[],
 ): Promise<void> {
+  // Extract operationId for messages that have it (put and delete operations)
+  const operationId = "operationId" in message ? message.operationId : "";
+
   if (!mf) {
     const errorResponse: ServerMessage = {
       type: "kv-operation-result",
+      operationId,
       operation: message.type,
       success: false,
       error: "Miniflare instance not available",
@@ -492,6 +503,7 @@ async function handleClientMessage(
         );
         const response: ServerMessage = {
           type: "kv-operation-result",
+          operationId: message.operationId,
           operation: "put",
           success: true,
         };
@@ -507,6 +519,7 @@ async function handleClientMessage(
         await deleteKVEntry(mf, kvName, message.key);
         const response: ServerMessage = {
           type: "kv-operation-result",
+          operationId: message.operationId,
           operation: "delete",
           success: true,
         };
@@ -517,6 +530,7 @@ async function handleClientMessage(
   } catch (err) {
     const response: ServerMessage = {
       type: "kv-operation-result",
+      operationId,
       operation: message.type,
       success: false,
       error: err instanceof Error ? err.message : String(err),

@@ -98,20 +98,30 @@ export function useDevtoolsSocket(): UseDevtoolsSocketResult {
       expirationTtl?: number,
       callback?: KVOperationCallback,
     ) => {
+      const operationId = crypto.randomUUID();
       if (callback) {
-        kvCallbacksRef.current.set(`put:${namespace}:${key}`, callback);
+        kvCallbacksRef.current.set(operationId, callback);
       }
-      sendMessage({ type: "put-kv-entry", namespace, key, value, metadata, expirationTtl });
+      sendMessage({
+        type: "put-kv-entry",
+        operationId,
+        namespace,
+        key,
+        value,
+        metadata,
+        expirationTtl,
+      });
     },
     [sendMessage],
   );
 
   const deleteKvEntry = useCallback(
     (namespace: string, key: string, callback?: KVOperationCallback) => {
+      const operationId = crypto.randomUUID();
       if (callback) {
-        kvCallbacksRef.current.set(`delete:${namespace}:${key}`, callback);
+        kvCallbacksRef.current.set(operationId, callback);
       }
-      sendMessage({ type: "delete-kv-entry", namespace, key });
+      sendMessage({ type: "delete-kv-entry", operationId, namespace, key });
     },
     [sendMessage],
   );
@@ -138,6 +148,10 @@ export function useDevtoolsSocket(): UseDevtoolsSocketResult {
 
     ws.onclose = () => {
       setConnected(false);
+      // Clear pending callbacks - they won't receive responses
+      kvCallbacksRef.current.clear();
+      // Reset loading state
+      setKvLoading(false);
       // Reconnect after 2 seconds
       reconnectTimeoutRef.current = window.setTimeout(() => {
         connect();
@@ -201,15 +215,11 @@ export function useDevtoolsSocket(): UseDevtoolsSocketResult {
             if (!message.success) {
               setKvError(message.error ?? "Operation failed");
             }
-            // Find and call any registered callbacks
-            // We don't have exact key info here, so we'll call all pending callbacks
-            // A more robust implementation would track operation IDs
-            for (const [key, callback] of kvCallbacksRef.current.entries()) {
-              if (key.startsWith(message.operation + ":")) {
-                callback(message.success, message.error);
-                kvCallbacksRef.current.delete(key);
-                break;
-              }
+            // Find and call the registered callback by operationId
+            const callback = kvCallbacksRef.current.get(message.operationId);
+            if (callback) {
+              callback(message.success, message.error);
+              kvCallbacksRef.current.delete(message.operationId);
             }
             break;
         }
