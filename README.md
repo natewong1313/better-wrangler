@@ -212,6 +212,85 @@ Cross-worker Durable Objects are automatically configured when you reference ano
 
 Durable Object migrations are managed automatically via a `bw.migrations.json` state file (should be committed to git). You never need to manually configure migration tags or track class changes.
 
+### `QueueProducer(options)`
+
+Creates a queue producer binding for sending messages to a Cloudflare Queue.
+
+```typescript
+// Basic producer
+QueueProducer({ 
+  name: "ORDER_QUEUE",  // Binding name (env.ORDER_QUEUE)
+  queue: "order-processing"  // Queue name
+})
+
+// With delivery delay (messages delayed before becoming visible)
+QueueProducer({ 
+  name: "ORDER_QUEUE",
+  queue: "order-processing",
+  deliveryDelay: 60  // 60 seconds delay (max 43200 = 12 hours)
+})
+
+// Reference a QueueConsumer for type-safe cross-worker queues
+const orderConsumer = QueueConsumer({ queue: "order-processing" });
+QueueProducer({ name: "ORDER_QUEUE", queue: orderConsumer })
+```
+
+### `QueueConsumer(options)`
+
+Creates a queue consumer binding for receiving messages from a Cloudflare Queue.
+
+```typescript
+// Basic push consumer (Worker handler receives messages)
+QueueConsumer({ queue: "order-processing" })
+
+// With full configuration
+QueueConsumer({
+  queue: "order-processing",
+  maxBatchSize: 50,        // 1-100 messages per batch (default 10)
+  maxBatchTimeout: 30,     // 0-60 seconds to wait for batch (default 5)
+  maxRetries: 5,           // Retry attempts before DLQ (default 3)
+  deadLetterQueue: "order-dlq",  // Failed messages go here
+  retryDelay: 60,          // Seconds before retry
+})
+
+// HTTP pull consumer (fetch messages via HTTP API)
+QueueConsumer({
+  queue: "pull-queue",
+  type: "http_pull"
+})
+```
+
+#### Cross-Worker Queues Example
+
+```typescript
+import { Worker, QueueProducer, QueueConsumer } from "better-wrangler";
+
+// Define consumer (can be referenced by producer)
+const orderQueue = QueueConsumer({
+  queue: "order-processing",
+  maxRetries: 5,
+  deadLetterQueue: "order-dlq",
+});
+
+// API worker produces messages
+export const apiWorker = Worker({
+  name: "api",
+  entryPoint: "./src/api.ts",
+  bindings: {
+    ORDER_QUEUE: QueueProducer({ name: "ORDER_QUEUE", queue: orderQueue }),
+  },
+});
+
+// Processor worker consumes messages
+export const processorWorker = Worker({
+  name: "processor",
+  entryPoint: "./src/processor.ts",
+  bindings: {
+    orderQueue,  // Consumer binding
+  },
+});
+```
+
 | Action | User Effort |
 |--------|-------------|
 | Add new DO | Zero config - auto-detected |
@@ -239,7 +318,7 @@ The system will fail with a helpful error if it can't determine whether a remove
 | Durable Objects | ✅ Supported |
 | R2 | ✅ Supported |
 | KV | ✅ Supported |
-| Queues | ❌ Not yet supported |
+| Queues | ✅ Supported |
 | Hyperdrive | ❌ Not yet supported |
 | Workers AI | ❌ Not yet supported |
 | Vectorize | ❌ Not yet supported |
