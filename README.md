@@ -138,10 +138,34 @@ DurableObject({
   name: "MY_DO",           // Binding name
   className: "MyDO",       // Export class name
   classPath: "./src/do.ts" // Path to DO implementation
+  storage: "sqlite",       // Optional: "sqlite" (default, 10GB) or "kv" (legacy, 128KB)
 })
 ```
 
 Cross-worker Durable Objects are automatically configured when you reference another worker's binding.
+
+#### Automatic Migration Management
+
+Durable Object migrations are managed automatically via a `bw.migrations.json` state file (should be committed to git). You never need to manually configure migration tags or track class changes.
+
+| Action | User Effort |
+|--------|-------------|
+| Add new DO | Zero config - auto-detected |
+| Rename DO (same file) | Zero config - auto-detected via classPath |
+| Rename DO (different file) | Add `_renamedFrom: "OldClassName"` to binding |
+| Delete DO | Pass `deletedDurableObjects: ["ClassName"]` to generate options |
+
+**Rename example** (when file path also changes):
+```typescript
+DurableObject({
+  name: "MY_DO",
+  className: "MyDOV2",           // New class name
+  classPath: "./src/new-do.ts", // New file path
+  _renamedFrom: "MyDO",         // Old class name
+})
+```
+
+The system will fail with a helpful error if it can't determine whether a removed class was renamed or deleted, ensuring you never accidentally lose data.
 
 ## Cloudflare Bindings Support
 

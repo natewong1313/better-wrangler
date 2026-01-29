@@ -2,6 +2,7 @@ import { type WorkerOptions } from "miniflare";
 import { D1Binding } from "../bindings/d1";
 import { DurableObjectBinding } from "../bindings/durable-object";
 import { KVBinding } from "../bindings/kv";
+import { QueueProducerBinding, QueueConsumerBinding } from "../bindings/queue";
 import { R2Binding } from "../bindings/r2";
 import { WorkerConfig, Bindings } from "../bindings/worker";
 
@@ -71,6 +72,41 @@ export function buildWorkerOptions(
 
         options.durableObjects ??= {};
         options.durableObjects[key] = doConfig;
+
+        break;
+      case "QueueProducer":
+        const queueProducerBinding = binding as QueueProducerBinding;
+
+        options.queueProducers ??= {};
+        options.queueProducers[key] = {
+          queueName: queueProducerBinding.queue,
+          ...(queueProducerBinding.deliveryDelay !== undefined && {
+            deliveryDelay: queueProducerBinding.deliveryDelay,
+          }),
+        };
+
+        break;
+      case "QueueConsumer":
+        const queueConsumerBinding = binding as QueueConsumerBinding;
+
+        options.queueConsumers ??= {};
+        options.queueConsumers[queueConsumerBinding.queue] = {
+          ...(queueConsumerBinding.maxBatchSize !== undefined && {
+            maxBatchSize: queueConsumerBinding.maxBatchSize,
+          }),
+          ...(queueConsumerBinding.maxBatchTimeout !== undefined && {
+            maxBatchTimeout: queueConsumerBinding.maxBatchTimeout,
+          }),
+          ...(queueConsumerBinding.maxRetries !== undefined && {
+            maxRetries: queueConsumerBinding.maxRetries,
+          }),
+          ...(queueConsumerBinding.deadLetterQueue !== undefined && {
+            deadLetterQueue: queueConsumerBinding.deadLetterQueue,
+          }),
+          ...(queueConsumerBinding.retryDelay !== undefined && {
+            retryDelay: queueConsumerBinding.retryDelay,
+          }),
+        };
 
         break;
     }

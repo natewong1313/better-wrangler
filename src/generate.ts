@@ -2,6 +2,7 @@ import type { WorkerConfig, Bindings } from "./bindings/worker";
 import type { D1Binding } from "./bindings/d1";
 import type { DurableObjectBinding } from "./bindings/durable-object";
 import type { KVBinding } from "./bindings/kv";
+import type { QueueProducerBinding, QueueConsumerBinding } from "./bindings/queue";
 import type { R2Binding } from "./bindings/r2";
 import {
   type MigrationState,
@@ -14,6 +15,22 @@ type DurableObjectWranglerBinding = {
   name: string;
   class_name: string;
   script_name?: string;
+};
+
+type QueueProducerWranglerConfig = {
+  queue: string;
+  binding: string;
+  delivery_delay?: number;
+};
+
+type QueueConsumerWranglerConfig = {
+  queue: string;
+  max_batch_size?: number;
+  max_batch_timeout?: number;
+  max_retries?: number;
+  dead_letter_queue?: string;
+  retry_delay?: number;
+  type?: "http_pull";
 };
 
 export type WranglerConfig = {
@@ -35,6 +52,10 @@ export type WranglerConfig = {
   };
   migrations?: WranglerMigration[];
   services?: Array<{ binding: string; service: string }>;
+  queues?: {
+    producers?: QueueProducerWranglerConfig[];
+    consumers?: QueueConsumerWranglerConfig[];
+  };
 };
 
 export type GenerateOptions = {
@@ -90,6 +111,8 @@ export const generateWranglerConfig = <B extends Bindings, V extends Record<stri
     const kvBindings: WranglerConfig["kv_namespaces"] = [];
     const r2Bindings: WranglerConfig["r2_buckets"] = [];
     const doBindings: NonNullable<WranglerConfig["durable_objects"]>["bindings"] = [];
+    const queueProducers: QueueProducerWranglerConfig[] = [];
+    const queueConsumers: QueueConsumerWranglerConfig[] = [];
     const ownedDOs: DurableObjectBinding[] = [];
     // Track external workers we need service bindings for (for cross-worker DO calls)
     const externalWorkers = new Set<string>();
@@ -136,6 +159,40 @@ export const generateWranglerConfig = <B extends Bindings, V extends Record<stri
         }
 
         doBindings.push(doConfig);
+      } else if (binding._type === "QueueProducer") {
+        const queueProducer = binding as QueueProducerBinding;
+        const producerConfig: QueueProducerWranglerConfig = {
+          queue: queueProducer.queue,
+          binding: key,
+        };
+        if (queueProducer.deliveryDelay !== undefined) {
+          producerConfig.delivery_delay = queueProducer.deliveryDelay;
+        }
+        queueProducers.push(producerConfig);
+      } else if (binding._type === "QueueConsumer") {
+        const queueConsumer = binding as QueueConsumerBinding;
+        const consumerConfig: QueueConsumerWranglerConfig = {
+          queue: queueConsumer.queue,
+        };
+        if (queueConsumer.maxBatchSize !== undefined) {
+          consumerConfig.max_batch_size = queueConsumer.maxBatchSize;
+        }
+        if (queueConsumer.maxBatchTimeout !== undefined) {
+          consumerConfig.max_batch_timeout = queueConsumer.maxBatchTimeout;
+        }
+        if (queueConsumer.maxRetries !== undefined) {
+          consumerConfig.max_retries = queueConsumer.maxRetries;
+        }
+        if (queueConsumer.deadLetterQueue !== undefined) {
+          consumerConfig.dead_letter_queue = queueConsumer.deadLetterQueue;
+        }
+        if (queueConsumer.retryDelay !== undefined) {
+          consumerConfig.retry_delay = queueConsumer.retryDelay;
+        }
+        if (queueConsumer.consumerType === "http_pull") {
+          consumerConfig.type = "http_pull";
+        }
+        queueConsumers.push(consumerConfig);
       }
     }
 
@@ -143,6 +200,11 @@ export const generateWranglerConfig = <B extends Bindings, V extends Record<stri
     if (kvBindings.length > 0) config.kv_namespaces = kvBindings;
     if (r2Bindings.length > 0) config.r2_buckets = r2Bindings;
     if (doBindings.length > 0) config.durable_objects = { bindings: doBindings };
+    if (queueProducers.length > 0 || queueConsumers.length > 0) {
+      config.queues = {};
+      if (queueProducers.length > 0) config.queues.producers = queueProducers;
+      if (queueConsumers.length > 0) config.queues.consumers = queueConsumers;
+    }
 
     // Auto-generate migrations for owned DOs
     if (ownedDOs.length > 0) {
