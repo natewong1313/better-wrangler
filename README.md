@@ -104,13 +104,69 @@ Defines a worker configuration.
 | `port` | `number` | Dev server port |
 | `primary` | `boolean` | Mark as primary worker (optional) |
 | `bindings` | `object` | Binding definitions |
+| `vars` | `Record<string, string>` | Environment variables |
+| `triggers` | `{ crons?: string[] }` | Scheduled triggers (cron expressions) |
+| `compatibility` | `{ date?: string, flags?: string[] }` | Compatibility settings |
+
+#### Environment Variables
+
+```typescript
+Worker({
+  name: "my-worker",
+  entryPoint: "./src/index.ts",
+  vars: {
+    API_URL: "https://api.example.com",
+    ENVIRONMENT: "production",
+  },
+})
+```
+
+Variables are merged into the `Env` type, giving you full type inference:
+
+```typescript
+async fetch(request: Request, env: typeof worker.Env) {
+  env.API_URL  // string - fully typed!
+}
+```
+
+#### Scheduled Triggers
+
+```typescript
+Worker({
+  name: "my-worker",
+  entryPoint: "./src/index.ts",
+  triggers: {
+    crons: ["0 * * * *", "0 0 * * *"],  // hourly and daily
+  },
+})
+```
+
+#### Compatibility Settings
+
+```typescript
+Worker({
+  name: "my-worker",
+  entryPoint: "./src/index.ts",
+  compatibility: {
+    date: "2024-09-23",
+    flags: ["nodejs_compat_v2"],
+  },
+})
+```
 
 ### `D1(options)`
 
 Creates a D1 database binding.
 
 ```typescript
+// Local development (name only)
 D1({ name: "my-database" })
+
+// Production deployment (with database ID)
+D1({ 
+  name: "my-database",
+  id: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+})
 ```
 
 ### `R2(options)`
@@ -126,7 +182,15 @@ R2({ name: "my-bucket" })
 Creates a KV namespace binding.
 
 ```typescript
+// Local development (name only)
 KV({ name: "my-kv-namespace" })
+
+// Production deployment (with namespace ID)
+KV({ 
+  name: "my-kv-namespace",
+  id: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+  preview_id: "yyyyyyyy-yyyy-yyyy-yyyy-yyyyyyyyyyyy"  // optional
+})
 ```
 
 ### `DurableObject(options)`
