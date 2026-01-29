@@ -1,6 +1,6 @@
 # better-wrangler
 
-> ** Experimental** - This tool is in early development. APIs may change without notice.
+> Experimental - This tool is in early development and may change without notice.
 
 TypeScript-first configuration for Cloudflare Workers monorepos.
 
