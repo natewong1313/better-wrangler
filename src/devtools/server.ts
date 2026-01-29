@@ -304,7 +304,7 @@ export async function startDevtoolsServer(
   });
 
   // Handle new connections
-  wss.on("connection", (ws) => {
+  wss.on("connection", (ws: WebSocket) => {
     // Send initial state
     const initMessage: ServerMessage = {
       type: "init",
@@ -516,7 +516,7 @@ export async function startDevtoolsServer(
       unsubscribe();
       await Promise.all([
         new Promise<void>((resolve, reject) => {
-          wss.close((err) => {
+          wss.close((err: Error | undefined) => {
             if (err) reject(err);
             else resolve();
           });
