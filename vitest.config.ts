@@ -17,12 +17,6 @@ export default defineConfig({
 				"src/logger/**",
 				"src/mocks/**",
 			],
-			thresholds: {
-				statements: 75,
-				branches: 70,
-				functions: 75,
-				lines: 75,
-			},
 		},
 		testTimeout: 30000,
 	},

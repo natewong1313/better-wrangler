@@ -1,16 +1,39 @@
 {
 	"name": "better-wrangler",
-	"version": "0.0.0",
-	"main": "./src/index.ts",
+	"version": "0.1.0",
+	"description": "drop in replacement for wrangler",
+	"author": "natewong1313",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/natewong1313/better-wrangler.git"
+	},
+	"bugs": {
+		"url": "https://github.com/natewong1313/better-wrangler/issues"
+	},
+	"homepage": "https://github.com/natewong1313/better-wrangler#readme",
+	"keywords": ["wrangler", "cloudflare", "workers", "testing"],
+	"type": "module",
+	"main": "./dist/index.mjs",
+	"types": "./dist/index.d.mts",
 	"bin": {
-		"bw": "./src/cli.ts"
+		"bw": "./dist/cli.mjs"
 	},
 	"exports": {
-		".": "./src/index.ts",
-		"./preload": "./src/preload.ts"
+		".": {
+			"types": "./dist/index.d.mts",
+			"import": "./dist/index.mjs"
+		},
+		"./preload": {
+			"types": "./dist/preload.d.mts",
+			"import": "./dist/preload.mjs"
+		}
 	},
+	"files": ["dist"],
 	"workspaces": ["examples/*"],
 	"scripts": {
+		"build": "tsdown",
+		"prepublishOnly": "bun run build",
 		"dev": "bun run src/cli.ts dev",
 		"sync": "bun run src/cli.ts sync",
 		"check-types": "tsc",
@@ -32,6 +55,7 @@
 		"lefthook": "^2.0.16",
 		"oxfmt": "^0.27.0",
 		"oxlint": "^1.42.0",
+		"tsdown": "^0.20.1",
 		"typescript": "^5.5.2",
 		"vitest": "^4.0.18"
 	},
