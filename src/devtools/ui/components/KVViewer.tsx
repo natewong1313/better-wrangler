@@ -29,6 +29,7 @@ type KVViewerProps = {
   expandedValues: Map<string, string>; // "namespace:key" -> full value
   namespace: string;
   loading: boolean;
+  error: string | null;
   onRefresh: () => void;
   onGetValue: (key: string) => void;
   onPut: (
@@ -62,6 +63,7 @@ export function KVViewer({
   expandedValues,
   namespace,
   loading,
+  error,
   onRefresh,
   onGetValue,
   onPut,
@@ -169,6 +171,13 @@ export function KVViewer({
           Add Entry
         </Button>
       </div>
+
+      {/* Error display */}
+      {error && (
+        <div className="mx-3 mt-3 px-4 py-2 rounded-md bg-destructive/10 text-destructive text-sm">
+          {error}
+        </div>
+      )}
 
       {/* Content */}
       {filteredEntries.length === 0 ? (

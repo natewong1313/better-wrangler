@@ -24,6 +24,7 @@ export default function App() {
     kvEntries,
     kvExpandedValues,
     kvLoading,
+    kvError,
     listKvEntries,
     getKvValue,
     putKvEntry,
@@ -150,6 +151,7 @@ export default function App() {
         entries={selectedItem?.type === "kv" ? (kvEntries.get(selectedItem.name) ?? []) : []}
         expandedValues={kvExpandedValues}
         loading={kvLoading}
+        error={kvError}
         onClose={() => setSelectedItem(null)}
         onRefresh={handleKvRefresh}
         onGetValue={handleKvGetValue}

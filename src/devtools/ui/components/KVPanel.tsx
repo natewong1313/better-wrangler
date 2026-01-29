@@ -12,6 +12,7 @@ type KVPanelProps = {
   entries: KVEntry[];
   expandedValues: Map<string, string>;
   loading: boolean;
+  error: string | null;
   onClose: () => void;
   onRefresh: () => void;
   onGetValue: (key: string) => void;
@@ -34,6 +35,7 @@ export function KVPanel({
   entries,
   expandedValues,
   loading,
+  error,
   onClose,
   onRefresh,
   onGetValue,
@@ -100,6 +102,7 @@ export function KVPanel({
           expandedValues={expandedValues}
           namespace={namespace}
           loading={loading}
+          error={error}
           onRefresh={onRefresh}
           onGetValue={onGetValue}
           onPut={onPut}

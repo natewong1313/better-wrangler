@@ -501,6 +501,23 @@ async function handleClientMessage(
       }
 
       case "put-kv-entry": {
+        // Input validation
+        if (!message.key || typeof message.key !== "string") {
+          throw new Error("Key must be a non-empty string");
+        }
+        if (new TextEncoder().encode(message.key).length > 512) {
+          throw new Error("Key exceeds 512 byte limit");
+        }
+        if (typeof message.value !== "string") {
+          throw new Error("Value must be a string");
+        }
+        if (
+          message.expirationTtl !== undefined &&
+          (typeof message.expirationTtl !== "number" || message.expirationTtl <= 0)
+        ) {
+          throw new Error("TTL must be a positive number");
+        }
+
         const kvName = findKvBindingName(message.namespace);
         if (!kvName) {
           throw new Error(`KV namespace "${message.namespace}" not found`);
@@ -616,8 +633,9 @@ export async function startDevtoolsServer(
       try {
         const message = JSON.parse(data.toString()) as ClientMessage;
         await handleClientMessage(ws, message, currentMiniflare, currentKVNamespaces);
-      } catch {
-        // Ignore parse errors
+      } catch (err) {
+        // Log errors for debugging (JSON parse errors and unhandled exceptions)
+        console.error("[devtools] WebSocket message error:", err);
       }
     });
   });
