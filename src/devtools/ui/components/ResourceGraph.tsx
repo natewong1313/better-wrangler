@@ -1,4 +1,5 @@
 import { useRef, useState, useCallback, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { Layers } from "lucide-react";
 import { GraphNodeCard } from "@/components/GraphNodeCard";
 import { EdgeLayer } from "@/components/EdgeLayer";
@@ -36,6 +37,7 @@ export function ResourceGraph({
   selectedItem,
   onSelectItem,
 }: ResourceGraphProps) {
+  const navigate = useNavigate();
   const containerRef = useRef<HTMLDivElement>(null);
   const [nodeRefs] = useState(() => new Map<string, HTMLElement | null>());
   const [highlightedNodeId, setHighlightedNodeId] = useState<string | null>(null);
@@ -85,6 +87,12 @@ export function ResourceGraph({
   // Handle node selection
   const handleNodeSelect = useCallback(
     (node: GraphNode) => {
+      // D1 nodes navigate to the D1 viewer page
+      if (node.bindingType === "D1") {
+        navigate(`/d1/${encodeURIComponent(node.label)}`);
+        return;
+      }
+
       if (!node.isSelectable) return;
 
       const currentlySelected = isNodeSelected(node);
@@ -102,7 +110,7 @@ export function ResourceGraph({
         });
       }
     },
-    [isNodeSelected, onSelectItem],
+    [isNodeSelected, onSelectItem, navigate],
   );
 
   // Set ref for a node

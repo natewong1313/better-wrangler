@@ -37,6 +37,8 @@ export async function runMiniflareDevMode(
   let devtools: DevtoolsResult | null = null;
   try {
     devtools = await startDevtools(syncResult.workers, devServer.urls);
+    // Pass the miniflare instance for D1 database access
+    devtools.setMiniflare(devServer.mf);
     log.info(`Devtools: ${devtools.url}`);
   } catch (err) {
     log.warn("Failed to start devtools:", err);
@@ -56,9 +58,10 @@ export async function runMiniflareDevMode(
       baseDir: process.cwd(),
     });
 
-    // Update devtools with new workers
+    // Update devtools with new workers and miniflare instance
     if (devtools) {
       devtools.updateWorkers(syncResult.workers, devServer.urls);
+      devtools.setMiniflare(devServer.mf);
     }
   });
 

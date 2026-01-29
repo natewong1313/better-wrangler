@@ -1,9 +1,11 @@
+import type { Miniflare } from "miniflare";
 import type { WorkerConfig, Bindings } from "../bindings/worker";
 import { startDevtoolsServer } from "./server";
 import { startViteServer } from "./vite";
 
 const DEFAULT_VITE_PORT = 5173;
 const DEFAULT_WS_PORT = 5174;
+const DEFAULT_HTTP_PORT = 5175;
 
 export type DevtoolsResult = {
   /**
@@ -14,6 +16,10 @@ export type DevtoolsResult = {
    * Update the workers displayed in the devtools
    */
   updateWorkers: (workers: WorkerConfig<Bindings>[], urls: Map<string, URL>) => void;
+  /**
+   * Set the miniflare instance for D1 database access
+   */
+  setMiniflare: (mf: Miniflare) => void;
   /**
    * Stop all devtools servers
    */
@@ -29,6 +35,10 @@ export type DevtoolsOptions = {
    * Port for the WebSocket server (default: 5174)
    */
   wsPort?: number;
+  /**
+   * Port for the HTTP API server (default: 5175)
+   */
+  httpPort?: number;
 };
 
 /**
@@ -41,20 +51,24 @@ export async function startDevtools(
 ): Promise<DevtoolsResult> {
   const vitePort = options.vitePort ?? DEFAULT_VITE_PORT;
   const wsPort = options.wsPort ?? DEFAULT_WS_PORT;
+  const httpPort = options.httpPort ?? DEFAULT_HTTP_PORT;
 
-  // Start WebSocket server first (UI needs to connect to it)
-  const wsServer = await startDevtoolsServer(workers, urls, wsPort);
+  // Start WebSocket and HTTP servers first (UI needs to connect to them)
+  const server = await startDevtoolsServer(workers, urls, wsPort, httpPort);
 
-  // Start Vite dev server
-  const viteServer = await startViteServer(wsPort, vitePort);
+  // Start Vite dev server with HTTP port for API access
+  const viteServer = await startViteServer(wsPort, vitePort, httpPort);
 
   return {
     url: viteServer.url,
     updateWorkers: (newWorkers, newUrls) => {
-      wsServer.updateWorkers(newWorkers, newUrls);
+      server.updateWorkers(newWorkers, newUrls);
+    },
+    setMiniflare: (mf: Miniflare) => {
+      server.setMiniflare(mf);
     },
     stop: async () => {
-      await Promise.all([viteServer.stop(), wsServer.stop()]);
+      await Promise.all([viteServer.stop(), server.stop()]);
     },
   };
 }

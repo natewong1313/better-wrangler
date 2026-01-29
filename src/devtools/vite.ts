@@ -20,6 +20,7 @@ export type ViteServerResult = {
 export async function startViteServer(
   wsPort: number,
   port: number = DEFAULT_PORT,
+  httpPort: number = 5175,
 ): Promise<ViteServerResult> {
   const uiRoot = resolve(__dirname, "ui");
 
@@ -31,9 +32,10 @@ export async function startViteServer(
       strictPort: false,
       open: false,
     },
-    // Pass the WebSocket port to the UI via env
+    // Pass the WebSocket and HTTP ports to the UI via env
     define: {
       __DEVTOOLS_WS_PORT__: JSON.stringify(wsPort),
+      __DEVTOOLS_HTTP_PORT__: JSON.stringify(httpPort),
     },
     // Suppress Vite's own logging since we have our own logger
     logLevel: "silent",
