@@ -9,7 +9,7 @@ export default defineConfig({
       description:
         "TypeScript-first configuration for Cloudflare Workers monorepos",
       social: {
-        github: "https://github.com/anomalyco/better-wrangler",
+        github: "https://github.com/natewong1313/better-wrangler",
       },
       sidebar: [
         {
