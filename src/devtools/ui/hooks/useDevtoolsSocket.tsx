@@ -57,11 +57,15 @@ export function useDevtoolsSocket(): UseDevtoolsSocketResult {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
   const kvCallbacksRef = useRef<Map<string, KVOperationCallback>>(new Map());
+  const pendingMessagesRef = useRef<ClientMessage[]>([]);
 
-  // Send a message to the server
+  // Send a message to the server, queueing if not connected
   const sendMessage = useCallback((message: ClientMessage) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify(message));
+    } else {
+      // Queue message to be sent when connection opens
+      pendingMessagesRef.current.push(message);
     }
   }, []);
 
@@ -70,7 +74,10 @@ export function useDevtoolsSocket(): UseDevtoolsSocketResult {
     (namespace: string) => {
       setKvLoading(true);
       setKvError(null);
-      sendMessage({ type: "list-kv-entries", namespace });
+      sendMessage({
+        type: "list-kv-entries",
+        namespace,
+      });
     },
     [sendMessage],
   );
@@ -120,6 +127,13 @@ export function useDevtoolsSocket(): UseDevtoolsSocketResult {
 
     ws.onopen = () => {
       setConnected(true);
+      // Send any queued messages
+      while (pendingMessagesRef.current.length > 0) {
+        const msg = pendingMessagesRef.current.shift();
+        if (msg) {
+          ws.send(JSON.stringify(msg));
+        }
+      }
     };
 
     ws.onclose = () => {

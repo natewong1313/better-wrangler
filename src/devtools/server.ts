@@ -437,16 +437,17 @@ async function handleClientMessage(
     return;
   }
 
-  // Find the KV namespace name from binding name
-  const findKvName = (bindingName: string): string | null => {
+  // Verify the KV binding exists and return the binding name for use with mf.getKVNamespace()
+  // Note: mf.getKVNamespace() takes the binding name, not the internal KV namespace name
+  const findKvBindingName = (bindingName: string): string | null => {
     const ns = kvNamespaces.find((n) => n.bindingName === bindingName);
-    return ns?.kvName ?? null;
+    return ns ? bindingName : null;
   };
 
   try {
     switch (message.type) {
       case "list-kv-entries": {
-        const kvName = findKvName(message.namespace);
+        const kvName = findKvBindingName(message.namespace);
         if (!kvName) {
           throw new Error(`KV namespace "${message.namespace}" not found`);
         }
@@ -461,7 +462,7 @@ async function handleClientMessage(
       }
 
       case "get-kv-value": {
-        const kvName = findKvName(message.namespace);
+        const kvName = findKvBindingName(message.namespace);
         if (!kvName) {
           throw new Error(`KV namespace "${message.namespace}" not found`);
         }
@@ -477,7 +478,7 @@ async function handleClientMessage(
       }
 
       case "put-kv-entry": {
-        const kvName = findKvName(message.namespace);
+        const kvName = findKvBindingName(message.namespace);
         if (!kvName) {
           throw new Error(`KV namespace "${message.namespace}" not found`);
         }
@@ -499,7 +500,7 @@ async function handleClientMessage(
       }
 
       case "delete-kv-entry": {
-        const kvName = findKvName(message.namespace);
+        const kvName = findKvBindingName(message.namespace);
         if (!kvName) {
           throw new Error(`KV namespace "${message.namespace}" not found`);
         }
