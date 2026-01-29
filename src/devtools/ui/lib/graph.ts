@@ -80,6 +80,7 @@ export function buildGraph(
       }
 
       const bindingId = `binding:${worker.name}:${binding.name}`;
+      const isClickable = isDO || binding.type === "D1";
       const bindingNode: GraphNode = {
         id: bindingId,
         type: isDO ? "durable-object" : "binding",
@@ -87,7 +88,7 @@ export function buildGraph(
         bindingType: binding.type,
         className: binding.className,
         owner: binding.owner,
-        isSelectable: isDO,
+        isSelectable: isClickable,
         column,
         row: bindingRow++,
       };
@@ -109,6 +110,7 @@ export function buildGraph(
     const isDO = binding.type === "DurableObject";
     const bindingId = `shared:${binding.type}:${binding.name}`;
 
+    const isClickable = isDO || binding.type === "D1";
     const sharedNode: GraphNode = {
       id: bindingId,
       type: "shared-binding",
@@ -117,7 +119,7 @@ export function buildGraph(
       className: binding.className,
       owner: binding.owner,
       usedBy: binding.usedBy,
-      isSelectable: isDO,
+      isSelectable: isClickable,
       column: sharedColumn,
       row: index,
     };
