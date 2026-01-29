@@ -17,9 +17,9 @@ export type DevtoolsResult = {
    */
   updateWorkers: (workers: WorkerConfig<Bindings>[], urls: Map<string, URL>) => void;
   /**
-   * Set the miniflare instance for D1 database access
+   * Update the Miniflare instance (needed after restart)
    */
-  setMiniflare: (mf: Miniflare) => void;
+  updateMiniflare: (mf: Miniflare) => void;
   /**
    * Stop all devtools servers
    */
@@ -39,6 +39,10 @@ export type DevtoolsOptions = {
    * Port for the HTTP API server (default: 5175)
    */
   httpPort?: number;
+  /**
+   * Miniflare instance for KV and D1 access
+   */
+  miniflare?: Miniflare;
 };
 
 /**
@@ -54,7 +58,13 @@ export async function startDevtools(
   const httpPort = options.httpPort ?? DEFAULT_HTTP_PORT;
 
   // Start WebSocket and HTTP servers first (UI needs to connect to them)
-  const server = await startDevtoolsServer(workers, urls, wsPort, httpPort);
+  const server = await startDevtoolsServer(
+    workers,
+    urls,
+    wsPort,
+    httpPort,
+    options.miniflare ?? null,
+  );
 
   // Start Vite dev server with HTTP port for API access
   const viteServer = await startViteServer(wsPort, vitePort, httpPort);
@@ -64,8 +74,8 @@ export async function startDevtools(
     updateWorkers: (newWorkers, newUrls) => {
       server.updateWorkers(newWorkers, newUrls);
     },
-    setMiniflare: (mf: Miniflare) => {
-      server.setMiniflare(mf);
+    updateMiniflare: (mf) => {
+      server.updateMiniflare(mf);
     },
     stop: async () => {
       await Promise.all([viteServer.stop(), server.stop()]);

@@ -5,10 +5,12 @@ import { Logger, type LogEntry } from "../logger";
 import type { WorkerConfig, Bindings } from "../bindings/worker";
 import type { DurableObjectBinding } from "../bindings/durable-object";
 import type { D1Binding } from "../bindings/d1";
+import type { KVBinding } from "../bindings/kv";
 
 const DEFAULT_WS_PORT = 5174;
 const DEFAULT_HTTP_PORT = 5175;
 const MAX_LOG_BUFFER = 100;
+const MAX_VALUE_PREVIEW_SIZE = 1024; // 1KB truncation for value previews
 
 /**
  * Binding info sent to the UI.
@@ -42,12 +44,53 @@ export type SharedBinding = {
 };
 
 /**
+ * KV entry with truncation support.
+ */
+export type KVEntry = {
+  key: string;
+  value: string | null; // null if binary
+  valueTruncated: boolean; // true if value was truncated
+  valueSize: number; // full size in bytes
+  metadata?: unknown;
+  expiration?: number; // Unix timestamp
+};
+
+/**
+ * KV namespace info for the UI.
+ */
+export type KVNamespaceInfo = {
+  bindingName: string; // e.g., "CACHE"
+  kvName: string; // The actual KV namespace name
+  workerName: string; // Which worker owns this binding
+};
+
+/**
  * Messages sent from server to client.
  */
 export type ServerMessage =
   | { type: "init"; workers: WorkerInfo[]; sharedBindings: SharedBinding[]; logs: LogEntry[] }
   | { type: "log"; entry: LogEntry }
-  | { type: "workers-updated"; workers: WorkerInfo[]; sharedBindings: SharedBinding[] };
+  | { type: "workers-updated"; workers: WorkerInfo[]; sharedBindings: SharedBinding[] }
+  | { type: "kv-namespaces"; namespaces: KVNamespaceInfo[] }
+  | { type: "kv-entries"; namespace: string; entries: KVEntry[] }
+  | { type: "kv-entry-value"; namespace: string; key: string; value: string }
+  | { type: "kv-operation-result"; operation: string; success: boolean; error?: string };
+
+/**
+ * Messages sent from client to server.
+ */
+export type ClientMessage =
+  | { type: "list-kv-entries"; namespace: string }
+  | { type: "get-kv-value"; namespace: string; key: string }
+  | {
+      type: "put-kv-entry";
+      namespace: string;
+      key: string;
+      value: string;
+      metadata?: unknown;
+      expirationTtl?: number;
+    }
+  | { type: "delete-kv-entry"; namespace: string; key: string };
 
 /**
  * D1 binding info with database name
@@ -62,7 +105,7 @@ export type DevtoolsServerResult = {
   wsPort: number;
   httpPort: number;
   updateWorkers: (workers: WorkerConfig<Bindings>[], urls: Map<string, URL>) => void;
-  setMiniflare: (mf: Miniflare) => void;
+  updateMiniflare: (mf: Miniflare) => void;
   stop: () => Promise<void>;
 };
 
@@ -91,6 +134,18 @@ function isD1Binding(binding: unknown): binding is D1Binding {
 }
 
 /**
+ * Check if a binding is a KV binding.
+ */
+function isKVBinding(binding: unknown): binding is KVBinding {
+  return (
+    typeof binding === "object" &&
+    binding !== null &&
+    "_type" in binding &&
+    (binding as { _type: string })._type === "KV"
+  );
+}
+
+/**
  * Extract D1 bindings from workers for API access.
  */
 function extractD1Bindings(workers: WorkerConfig<Bindings>[]): D1BindingInfoExtended[] {
@@ -114,6 +169,27 @@ function extractD1Bindings(workers: WorkerConfig<Bindings>[]): D1BindingInfoExte
   }
 
   return d1Bindings;
+}
+
+/**
+ * Extract KV namespace info from workers.
+ */
+function extractKVNamespaces(workers: WorkerConfig<Bindings>[]): KVNamespaceInfo[] {
+  const namespaces: KVNamespaceInfo[] = [];
+
+  for (const worker of workers) {
+    for (const [bindingName, binding] of Object.entries(worker.bindings)) {
+      if (isKVBinding(binding)) {
+        namespaces.push({
+          bindingName,
+          kvName: binding.name,
+          workerName: worker.name,
+        });
+      }
+    }
+  }
+
+  return namespaces;
 }
 
 /**
@@ -251,6 +327,204 @@ async function parseBody<T>(req: IncomingMessage): Promise<T> {
 }
 
 /**
+ * List all entries in a KV namespace with truncated values.
+ */
+async function listKVEntries(mf: Miniflare, kvName: string): Promise<KVEntry[]> {
+  const kv = await mf.getKVNamespace(kvName);
+  const listResult = await kv.list();
+  const entries: KVEntry[] = [];
+
+  for (const key of listResult.keys) {
+    try {
+      const valueWithMetadata = await kv.getWithMetadata(key.name, { type: "arrayBuffer" });
+      const arrayBuffer = valueWithMetadata.value as ArrayBuffer | null;
+
+      let value: string | null = null;
+      let valueTruncated = false;
+      let valueSize = 0;
+
+      if (arrayBuffer) {
+        valueSize = arrayBuffer.byteLength;
+        // Try to decode as text
+        try {
+          const fullText = new TextDecoder("utf-8", { fatal: true }).decode(arrayBuffer);
+          if (fullText.length > MAX_VALUE_PREVIEW_SIZE) {
+            value = fullText.slice(0, MAX_VALUE_PREVIEW_SIZE);
+            valueTruncated = true;
+          } else {
+            value = fullText;
+          }
+        } catch {
+          // Binary data - show as null with size
+          value = null;
+        }
+      }
+
+      entries.push({
+        key: key.name,
+        value,
+        valueTruncated,
+        valueSize,
+        metadata: valueWithMetadata.metadata ?? undefined,
+        expiration: key.expiration,
+      });
+    } catch {
+      // Skip entries that fail to read
+      entries.push({
+        key: key.name,
+        value: null,
+        valueTruncated: false,
+        valueSize: 0,
+      });
+    }
+  }
+
+  return entries;
+}
+
+/**
+ * Get full value for a KV entry.
+ */
+async function getKVValue(mf: Miniflare, kvName: string, key: string): Promise<string | null> {
+  const kv = await mf.getKVNamespace(kvName);
+  const value = await kv.get(key, { type: "text" });
+  return value;
+}
+
+/**
+ * Put a value in KV.
+ */
+async function putKVEntry(
+  mf: Miniflare,
+  kvName: string,
+  key: string,
+  value: string,
+  metadata?: unknown,
+  expirationTtl?: number,
+): Promise<void> {
+  const kv = await mf.getKVNamespace(kvName);
+  const options: { metadata?: unknown; expirationTtl?: number } = {};
+  if (metadata !== undefined) options.metadata = metadata;
+  if (expirationTtl !== undefined) options.expirationTtl = expirationTtl;
+  await kv.put(key, value, options);
+}
+
+/**
+ * Delete a KV entry.
+ */
+async function deleteKVEntry(mf: Miniflare, kvName: string, key: string): Promise<void> {
+  const kv = await mf.getKVNamespace(kvName);
+  await kv.delete(key);
+}
+
+/**
+ * Handle incoming client messages for KV operations.
+ */
+async function handleClientMessage(
+  ws: WebSocket,
+  message: ClientMessage,
+  mf: Miniflare | null,
+  kvNamespaces: KVNamespaceInfo[],
+): Promise<void> {
+  if (!mf) {
+    const errorResponse: ServerMessage = {
+      type: "kv-operation-result",
+      operation: message.type,
+      success: false,
+      error: "Miniflare instance not available",
+    };
+    ws.send(JSON.stringify(errorResponse));
+    return;
+  }
+
+  // Find the KV namespace name from binding name
+  const findKvName = (bindingName: string): string | null => {
+    const ns = kvNamespaces.find((n) => n.bindingName === bindingName);
+    return ns?.kvName ?? null;
+  };
+
+  try {
+    switch (message.type) {
+      case "list-kv-entries": {
+        const kvName = findKvName(message.namespace);
+        if (!kvName) {
+          throw new Error(`KV namespace "${message.namespace}" not found`);
+        }
+        const entries = await listKVEntries(mf, kvName);
+        const response: ServerMessage = {
+          type: "kv-entries",
+          namespace: message.namespace,
+          entries,
+        };
+        ws.send(JSON.stringify(response));
+        break;
+      }
+
+      case "get-kv-value": {
+        const kvName = findKvName(message.namespace);
+        if (!kvName) {
+          throw new Error(`KV namespace "${message.namespace}" not found`);
+        }
+        const value = await getKVValue(mf, kvName, message.key);
+        const response: ServerMessage = {
+          type: "kv-entry-value",
+          namespace: message.namespace,
+          key: message.key,
+          value: value ?? "",
+        };
+        ws.send(JSON.stringify(response));
+        break;
+      }
+
+      case "put-kv-entry": {
+        const kvName = findKvName(message.namespace);
+        if (!kvName) {
+          throw new Error(`KV namespace "${message.namespace}" not found`);
+        }
+        await putKVEntry(
+          mf,
+          kvName,
+          message.key,
+          message.value,
+          message.metadata,
+          message.expirationTtl,
+        );
+        const response: ServerMessage = {
+          type: "kv-operation-result",
+          operation: "put",
+          success: true,
+        };
+        ws.send(JSON.stringify(response));
+        break;
+      }
+
+      case "delete-kv-entry": {
+        const kvName = findKvName(message.namespace);
+        if (!kvName) {
+          throw new Error(`KV namespace "${message.namespace}" not found`);
+        }
+        await deleteKVEntry(mf, kvName, message.key);
+        const response: ServerMessage = {
+          type: "kv-operation-result",
+          operation: "delete",
+          success: true,
+        };
+        ws.send(JSON.stringify(response));
+        break;
+      }
+    }
+  } catch (err) {
+    const response: ServerMessage = {
+      type: "kv-operation-result",
+      operation: message.type,
+      success: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+    ws.send(JSON.stringify(response));
+  }
+}
+
+/**
  * Start the devtools WebSocket server.
  */
 export async function startDevtoolsServer(
@@ -258,6 +532,7 @@ export async function startDevtoolsServer(
   urls: Map<string, URL>,
   wsPort: number = DEFAULT_WS_PORT,
   httpPort: number = DEFAULT_HTTP_PORT,
+  mf: Miniflare | null = null,
 ): Promise<DevtoolsServerResult> {
   // Buffer recent logs for new connections
   const logBuffer: LogEntry[] = [];
@@ -266,7 +541,8 @@ export async function startDevtoolsServer(
   let currentWorkers = extractWorkerInfo(workers, urls);
   let currentSharedBindings = detectSharedBindings(workers);
   let currentRawWorkers = workers;
-  let miniflareInstance: Miniflare | null = null;
+  let currentKVNamespaces = extractKVNamespaces(workers);
+  let currentMiniflare = mf;
 
   // Create WebSocket server
   const wss = new WebSocketServer({ port: wsPort });
@@ -300,6 +576,23 @@ export async function startDevtoolsServer(
       logs: [...logBuffer],
     };
     ws.send(JSON.stringify(initMessage));
+
+    // Send KV namespaces
+    const kvMessage: ServerMessage = {
+      type: "kv-namespaces",
+      namespaces: currentKVNamespaces,
+    };
+    ws.send(JSON.stringify(kvMessage));
+
+    // Handle incoming messages from client
+    ws.on("message", async (data) => {
+      try {
+        const message = JSON.parse(data.toString()) as ClientMessage;
+        await handleClientMessage(ws, message, currentMiniflare, currentKVNamespaces);
+      } catch {
+        // Ignore parse errors
+      }
+    });
   });
 
   // Create HTTP server for D1 API
@@ -331,13 +624,13 @@ export async function startDevtoolsServer(
       if (tablesMatch && req.method === "GET") {
         const bindingName = decodeURIComponent(tablesMatch[1]);
 
-        if (!miniflareInstance) {
+        if (!currentMiniflare) {
           sendError(res, "Miniflare not initialized", 503);
           return;
         }
 
         try {
-          const db = await miniflareInstance.getD1Database(bindingName);
+          const db = await currentMiniflare.getD1Database(bindingName);
           const result = await db
             .prepare(
               `SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' ORDER BY name`,
@@ -356,13 +649,13 @@ export async function startDevtoolsServer(
         const bindingName = decodeURIComponent(schemaMatch[1]);
         const tableName = decodeURIComponent(schemaMatch[2]);
 
-        if (!miniflareInstance) {
+        if (!currentMiniflare) {
           sendError(res, "Miniflare not initialized", 503);
           return;
         }
 
         try {
-          const db = await miniflareInstance.getD1Database(bindingName);
+          const db = await currentMiniflare.getD1Database(bindingName);
           const result = await db.prepare(`PRAGMA table_info("${tableName}")`).all();
           sendJson(res, { columns: result.results });
         } catch (err) {
@@ -379,13 +672,13 @@ export async function startDevtoolsServer(
         const limit = parseInt(url.searchParams.get("limit") || "100", 10);
         const offset = parseInt(url.searchParams.get("offset") || "0", 10);
 
-        if (!miniflareInstance) {
+        if (!currentMiniflare) {
           sendError(res, "Miniflare not initialized", 503);
           return;
         }
 
         try {
-          const db = await miniflareInstance.getD1Database(bindingName);
+          const db = await currentMiniflare.getD1Database(bindingName);
 
           // Get total count
           const countResult = await db
@@ -416,7 +709,7 @@ export async function startDevtoolsServer(
       if (queryMatch && req.method === "POST") {
         const bindingName = decodeURIComponent(queryMatch[1]);
 
-        if (!miniflareInstance) {
+        if (!currentMiniflare) {
           sendError(res, "Miniflare not initialized", 503);
           return;
         }
@@ -430,7 +723,7 @@ export async function startDevtoolsServer(
             return;
           }
 
-          const db = await miniflareInstance.getD1Database(bindingName);
+          const db = await currentMiniflare.getD1Database(bindingName);
           const stmt = db.prepare(sql);
           const boundStmt = params.length > 0 ? stmt.bind(...params) : stmt;
 
@@ -477,6 +770,7 @@ export async function startDevtoolsServer(
       currentWorkers = extractWorkerInfo(newWorkers, newUrls);
       currentSharedBindings = detectSharedBindings(newWorkers);
       currentRawWorkers = newWorkers;
+      currentKVNamespaces = extractKVNamespaces(newWorkers);
 
       // Broadcast to all clients
       const message: ServerMessage = {
@@ -491,9 +785,22 @@ export async function startDevtoolsServer(
           client.send(data);
         }
       }
+
+      // Also send updated KV namespaces
+      const kvMessage: ServerMessage = {
+        type: "kv-namespaces",
+        namespaces: currentKVNamespaces,
+      };
+      const kvData = JSON.stringify(kvMessage);
+
+      for (const client of wss.clients) {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(kvData);
+        }
+      }
     },
-    setMiniflare: (mf: Miniflare) => {
-      miniflareInstance = mf;
+    updateMiniflare: (newMf) => {
+      currentMiniflare = newMf;
     },
     stop: async () => {
       unsubscribe();

@@ -72,6 +72,8 @@ export function buildGraph(
     let bindingRow = 1;
     worker.bindings.forEach((binding) => {
       const isDO = binding.type === "DurableObject";
+      const isKV = binding.type === "KV";
+      const isD1 = binding.type === "D1";
       const bindingKey = isDO ? `DO:${binding.className}` : `${binding.type}:${binding.name}`;
 
       // Skip if this is a shared binding (will be rendered in shared column)
@@ -80,7 +82,7 @@ export function buildGraph(
       }
 
       const bindingId = `binding:${worker.name}:${binding.name}`;
-      const isClickable = isDO || binding.type === "D1";
+      const isClickable = isDO || isKV || isD1;
       const bindingNode: GraphNode = {
         id: bindingId,
         type: isDO ? "durable-object" : "binding",
@@ -108,9 +110,11 @@ export function buildGraph(
   const sharedColumn = workers.length;
   sharedBindings.forEach((binding, index) => {
     const isDO = binding.type === "DurableObject";
+    const isKV = binding.type === "KV";
+    const isD1 = binding.type === "D1";
     const bindingId = `shared:${binding.type}:${binding.name}`;
 
-    const isClickable = isDO || binding.type === "D1";
+    const isClickable = isDO || isKV || isD1;
     const sharedNode: GraphNode = {
       id: bindingId,
       type: "shared-binding",

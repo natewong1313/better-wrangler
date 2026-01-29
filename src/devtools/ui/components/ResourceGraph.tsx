@@ -6,10 +6,11 @@ import { EdgeLayer } from "@/components/EdgeLayer";
 import { buildGraph, type GraphNode } from "@/lib/graph";
 import type { WorkerInfo, SharedBinding } from "../../server";
 
-type SelectedItem = {
-  type: "worker" | "durable-object";
-  name: string;
-} | null;
+type SelectedItem =
+  | { type: "worker"; name: string }
+  | { type: "durable-object"; name: string }
+  | { type: "kv"; name: string; workerName: string }
+  | null;
 
 type ResourceGraphProps = {
   workers: WorkerInfo[];
@@ -79,6 +80,13 @@ export function ResourceGraph({
           (node.className === selectedItem.name || node.label === selectedItem.name)
         );
       }
+      if (selectedItem.type === "kv") {
+        return (
+          (node.type === "binding" || node.type === "shared-binding") &&
+          node.bindingType === "KV" &&
+          node.label === selectedItem.name
+        );
+      }
       return false;
     },
     [selectedItem],
@@ -108,9 +116,23 @@ export function ResourceGraph({
           type: "durable-object",
           name: node.className || node.label,
         });
+      } else if (
+        (node.type === "binding" || node.type === "shared-binding") &&
+        node.bindingType === "KV"
+      ) {
+        // Find the worker that owns this KV binding
+        const workerName =
+          node.owner ||
+          workers.find((w) => w.bindings.some((b) => b.name === node.label))?.name ||
+          "unknown";
+        onSelectItem({
+          type: "kv",
+          name: node.label,
+          workerName,
+        });
       }
     },
-    [isNodeSelected, onSelectItem, navigate],
+    [isNodeSelected, onSelectItem, navigate, workers],
   );
 
   // Set ref for a node
