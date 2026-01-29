@@ -1,0 +1,80 @@
+---
+title: better-wrangler
+description: TypeScript-first configuration for Cloudflare Workers monorepos
+template: splash
+hero:
+  tagline: A lightweight, opinionated alternative to managing Cloudflare Workers with full type safety and automatic configuration generation.
+  actions:
+    - text: Get Started
+      link: /getting-started/installation/
+      icon: right-arrow
+    - text: View on GitHub
+      link: https://github.com/anomalyco/better-wrangler
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from "@astrojs/starlight/components";
+
+## Features
+
+<CardGrid stagger>
+  <Card title="Type-Safe Configuration" icon="seti:typescript">
+    Define your Workers configuration in TypeScript with full type inference for
+    all bindings. No more guessing what options are available.
+  </Card>
+  <Card title="Auto-Generated wrangler.jsonc" icon="setting">
+    Write your config once in `bw.config.ts` and let better-wrangler generate
+    the correct `wrangler.jsonc` files automatically.
+  </Card>
+  <Card title="Monorepo Support" icon="stack">
+    Run multiple Workers in parallel with the Miniflare-based dev server.
+    Cross-worker Durable Object references just work.
+  </Card>
+  <Card title="Automatic Migrations" icon="rocket">
+    Durable Object migrations are tracked and managed automatically. No manual
+    migration configuration needed.
+  </Card>
+</CardGrid>
+
+## Quick Example
+
+```typescript
+// bw.config.ts
+import { Worker, D1, KV, DurableObject, type InferEnv } from "better-wrangler";
+
+const db = D1({ name: "my-database" });
+const cache = KV({ name: "my-cache" });
+const counter = DurableObject({
+  name: "counter",
+  className: "Counter",
+  classPath: "./src/counter.ts",
+});
+
+export const api = Worker({
+  name: "api",
+  entryPoint: "./src/index.ts",
+  bindings: { db, cache, counter },
+});
+
+export type Env = InferEnv<typeof api>;
+```
+
+Then run:
+
+```bash
+bw dev    # Start all workers in development mode
+bw sync   # Generate wrangler.jsonc files
+```
+
+## Supported Bindings
+
+| Binding         | Status      |
+| --------------- | ----------- |
+| D1 Database     | Supported   |
+| R2 Storage      | Supported   |
+| KV Namespace    | Supported   |
+| Durable Objects | Supported   |
+| Queues          | Supported   |
+| Service Binding | Coming Soon |
+| Workers AI      | Coming Soon |

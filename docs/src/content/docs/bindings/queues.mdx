@@ -1,0 +1,346 @@
+---
+title: Queues
+description: Cloudflare's message queue bindings for producers and consumers
+---
+
+Cloudflare Queues enable asynchronous message passing between Workers. better-wrangler provides two functions: `QueueProducer()` for sending messages and `QueueConsumer()` for receiving them.
+
+## Basic Usage
+
+### Producer (Sending Messages)
+
+```typescript
+import { Worker, QueueProducer, type InferEnv } from "better-wrangler";
+
+const taskQueue = QueueProducer({
+  name: "task-producer",
+  queue: "my-tasks",
+});
+
+export const api = Worker({
+  name: "api",
+  entryPoint: "./src/index.ts",
+  bindings: { taskQueue },
+});
+
+export type Env = InferEnv<typeof api>;
+```
+
+### Consumer (Receiving Messages)
+
+```typescript
+import { Worker, QueueConsumer, type InferEnv } from "better-wrangler";
+
+const taskConsumer = QueueConsumer({
+  queue: "my-tasks",
+  maxBatchSize: 10,
+});
+
+export const worker = Worker({
+  name: "task-worker",
+  entryPoint: "./src/worker.ts",
+  bindings: { taskConsumer },
+});
+
+export type Env = InferEnv<typeof worker>;
+```
+
+## QueueProducer Options
+
+| Option         | Type     | Required | Description                                    |
+| -------------- | -------- | -------- | ---------------------------------------------- |
+| `name`         | `string` | Yes      | Binding name (how you access it in env)        |
+| `queue`        | `string` | Yes      | Queue name in Cloudflare                       |
+| `deliveryDelay`| `number` | No       | Default delay in seconds (0-43200)             |
+
+### name
+
+The name used to access the queue producer in your worker's environment.
+
+```typescript
+const emails = QueueProducer({
+  name: "emailQueue", // Access as env.emailQueue
+  queue: "email-notifications",
+});
+```
+
+### queue
+
+The name of the Cloudflare Queue. Must match the queue name in your Cloudflare account.
+
+```typescript
+const tasks = QueueProducer({
+  name: "tasks",
+  queue: "background-tasks", // Must exist in Cloudflare
+});
+```
+
+### deliveryDelay
+
+Optional default delay (in seconds) before messages become available to consumers. Range: 0-43200 (12 hours).
+
+```typescript
+const delayedQueue = QueueProducer({
+  name: "delayed",
+  queue: "delayed-tasks",
+  deliveryDelay: 60, // Messages available after 60 seconds
+});
+```
+
+## QueueConsumer Options
+
+| Option            | Type                     | Required | Description                              |
+| ----------------- | ------------------------ | -------- | ---------------------------------------- |
+| `queue`           | `string`                 | Yes      | Queue name to consume from               |
+| `maxBatchSize`    | `number`                 | No       | Max messages per batch (1-100, default: 10) |
+| `maxBatchTimeout` | `number`                 | No       | Max seconds to wait for batch (0-60)     |
+| `maxRetries`      | `number`                 | No       | Retry attempts for failed messages (default: 3) |
+| `deadLetterQueue` | `string`                 | No       | Queue for failed messages after retries  |
+| `retryDelay`      | `number`                 | No       | Seconds to wait before retry             |
+| `type`            | `"push"` \| `"http_pull"` | No       | Consumer type (default: `"push"`)        |
+
+### maxBatchSize
+
+Maximum number of messages delivered in a single batch. Range: 1-100.
+
+```typescript
+const consumer = QueueConsumer({
+  queue: "my-tasks",
+  maxBatchSize: 50, // Process up to 50 messages at once
+});
+```
+
+### maxBatchTimeout
+
+Maximum seconds to wait for a full batch before delivering partial batch. Range: 0-60.
+
+```typescript
+const consumer = QueueConsumer({
+  queue: "my-tasks",
+  maxBatchSize: 100,
+  maxBatchTimeout: 30, // Wait up to 30s for 100 messages
+});
+```
+
+### maxRetries
+
+Number of times to retry a failed message before sending to dead letter queue. Default: 3.
+
+```typescript
+const consumer = QueueConsumer({
+  queue: "critical-tasks",
+  maxRetries: 5, // Try 5 times before giving up
+});
+```
+
+### deadLetterQueue
+
+Name of a queue to receive messages that fail after all retries.
+
+```typescript
+const consumer = QueueConsumer({
+  queue: "tasks",
+  maxRetries: 3,
+  deadLetterQueue: "failed-tasks", // Failed messages go here
+});
+```
+
+### retryDelay
+
+Seconds to wait before retrying a failed message.
+
+```typescript
+const consumer = QueueConsumer({
+  queue: "rate-limited-api",
+  retryDelay: 60, // Wait 1 minute before retry
+});
+```
+
+## Sending Messages
+
+```typescript
+import type { Env } from "../bw.config";
+
+interface Task {
+  type: string;
+  payload: unknown;
+}
+
+export default {
+  async fetch(request: Request, env: Env) {
+    // Send a single message
+    await env.taskQueue.send({ type: "process", payload: { id: 123 } });
+
+    // Send with options
+    await env.taskQueue.send(
+      { type: "delayed-task" },
+      { delaySeconds: 300 } // Delay this specific message
+    );
+
+    // Send multiple messages
+    await env.taskQueue.sendBatch([
+      { body: { type: "task1" } },
+      { body: { type: "task2" }, delaySeconds: 60 },
+    ]);
+
+    return new Response("Tasks queued");
+  },
+};
+```
+
+## Consuming Messages
+
+Your worker must export a `queue` handler:
+
+```typescript
+import type { Env } from "../bw.config";
+
+interface Task {
+  type: string;
+  payload: unknown;
+}
+
+export default {
+  async queue(batch: MessageBatch<Task>, env: Env) {
+    for (const message of batch.messages) {
+      try {
+        console.log(`Processing: ${message.body.type}`);
+        await processTask(message.body);
+        message.ack(); // Acknowledge successful processing
+      } catch (error) {
+        message.retry(); // Retry this message
+      }
+    }
+  },
+};
+
+async function processTask(task: Task) {
+  // Your processing logic
+}
+```
+
+## Cross-Worker Queues
+
+A common pattern is having one worker send messages and another consume them:
+
+```typescript
+import { Worker, QueueProducer, QueueConsumer, type InferEnv } from "better-wrangler";
+
+// Queue for sending tasks
+const taskProducer = QueueProducer({
+  name: "tasks",
+  queue: "background-tasks",
+});
+
+// Queue consumer
+const taskConsumer = QueueConsumer({
+  queue: "background-tasks",
+  maxBatchSize: 10,
+});
+
+// API worker sends tasks
+export const api = Worker({
+  name: "api",
+  entryPoint: "./src/api/index.ts",
+  bindings: { tasks: taskProducer },
+});
+
+// Background worker processes tasks
+export const worker = Worker({
+  name: "background-worker",
+  entryPoint: "./src/worker/index.ts",
+  bindings: { taskConsumer },
+});
+```
+
+## Example: Email Queue System
+
+```typescript
+// bw.config.ts
+import { Worker, QueueProducer, QueueConsumer, type InferEnv } from "better-wrangler";
+
+const emailProducer = QueueProducer({
+  name: "emailQueue",
+  queue: "email-notifications",
+});
+
+const emailConsumer = QueueConsumer({
+  queue: "email-notifications",
+  maxBatchSize: 25,
+  maxRetries: 3,
+  deadLetterQueue: "failed-emails",
+});
+
+export const api = Worker({
+  name: "api",
+  entryPoint: "./src/api/index.ts",
+  bindings: { emailQueue: emailProducer },
+});
+
+export const emailWorker = Worker({
+  name: "email-worker",
+  entryPoint: "./src/email-worker/index.ts",
+  bindings: { emailConsumer },
+});
+
+export type ApiEnv = InferEnv<typeof api>;
+export type EmailWorkerEnv = InferEnv<typeof emailWorker>;
+```
+
+```typescript
+// src/api/index.ts
+import type { ApiEnv } from "../../bw.config";
+
+interface EmailMessage {
+  to: string;
+  subject: string;
+  body: string;
+}
+
+export default {
+  async fetch(request: Request, env: ApiEnv) {
+    if (request.method === "POST") {
+      const email = await request.json<EmailMessage>();
+
+      await env.emailQueue.send(email);
+
+      return Response.json({ status: "queued" });
+    }
+    return new Response("Method Not Allowed", { status: 405 });
+  },
+};
+```
+
+```typescript
+// src/email-worker/index.ts
+import type { EmailWorkerEnv } from "../../bw.config";
+
+interface EmailMessage {
+  to: string;
+  subject: string;
+  body: string;
+}
+
+export default {
+  async queue(batch: MessageBatch<EmailMessage>, env: EmailWorkerEnv) {
+    for (const message of batch.messages) {
+      try {
+        await sendEmail(message.body);
+        message.ack();
+        console.log(`Email sent to ${message.body.to}`);
+      } catch (error) {
+        console.error(`Failed to send email: ${error}`);
+        message.retry();
+      }
+    }
+  },
+};
+
+async function sendEmail(email: EmailMessage) {
+  // Your email sending logic (e.g., via API)
+}
+```
+
+## Local Development
+
+Queues work locally between workers in the same dev server. Messages sent by one worker can be consumed by another worker running in the same `bw dev` session.

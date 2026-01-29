@@ -1,0 +1,242 @@
+---
+title: KV Namespace
+description: Cloudflare's global key-value storage binding
+---
+
+KV (Key-Value) is Cloudflare's global, low-latency key-value storage. Use the `KV()` function to create a binding.
+
+## Basic Usage
+
+```typescript
+import { Worker, KV, type InferEnv } from "better-wrangler";
+
+const cache = KV({ name: "my-cache" });
+
+export const api = Worker({
+  name: "api",
+  entryPoint: "./src/index.ts",
+  bindings: { cache },
+});
+
+export type Env = InferEnv<typeof api>;
+```
+
+## Options Reference
+
+| Option       | Type     | Required | Description                           |
+| ------------ | -------- | -------- | ------------------------------------- |
+| `name`       | `string` | Yes      | Name of the KV namespace              |
+| `id`         | `string` | No       | Namespace ID for production           |
+| `preview_id` | `string` | No       | Namespace ID for preview environments |
+
+### name
+
+The name of your KV namespace. Used to identify the namespace in Cloudflare.
+
+```typescript
+const cache = KV({ name: "api-cache" });
+```
+
+### id
+
+The KV namespace ID from your Cloudflare dashboard. Required for production deployments.
+
+```typescript
+const cache = KV({
+  name: "api-cache",
+  id: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+});
+```
+
+### preview_id
+
+Optional separate namespace ID for preview deployments. Useful for isolating preview/staging data from production.
+
+```typescript
+const cache = KV({
+  name: "api-cache",
+  id: "production-namespace-id",
+  preview_id: "preview-namespace-id",
+});
+```
+
+## Using in Your Worker
+
+The binding is available as a `KVNamespace` type:
+
+```typescript
+import type { Env } from "../bw.config";
+
+export default {
+  async fetch(request: Request, env: Env) {
+    // Get a value
+    const value = await env.cache.get("key");
+
+    // Get with type
+    const user = await env.cache.get<{ name: string }>("user:123", "json");
+
+    // Set a value
+    await env.cache.put("key", "value");
+
+    // Set with expiration (TTL in seconds)
+    await env.cache.put("session", "data", { expirationTtl: 3600 });
+
+    // Set with absolute expiration (Unix timestamp)
+    await env.cache.put("temp", "data", { expiration: Date.now() / 1000 + 3600 });
+
+    // Delete a value
+    await env.cache.delete("key");
+
+    return new Response("OK");
+  },
+};
+```
+
+## Common Operations
+
+### Get with Different Types
+
+```typescript
+// String (default)
+const str = await env.cache.get("key");
+
+// JSON - automatically parsed
+const json = await env.cache.get("key", "json");
+
+// ArrayBuffer
+const buffer = await env.cache.get("key", "arrayBuffer");
+
+// ReadableStream
+const stream = await env.cache.get("key", "stream");
+```
+
+### Get with Metadata
+
+```typescript
+const { value, metadata } = await env.cache.getWithMetadata<
+  string,
+  { version: number }
+>("key");
+
+console.log(value); // The stored value
+console.log(metadata?.version); // Custom metadata
+```
+
+### Put with Metadata
+
+```typescript
+await env.cache.put("user:123", JSON.stringify(user), {
+  expirationTtl: 86400, // 24 hours
+  metadata: {
+    version: 1,
+    createdAt: Date.now(),
+  },
+});
+```
+
+### List Keys
+
+```typescript
+const listed = await env.cache.list({
+  prefix: "user:",
+  limit: 100,
+});
+
+for (const key of listed.keys) {
+  console.log(key.name, key.expiration);
+}
+
+// Handle pagination
+if (!listed.list_complete) {
+  const more = await env.cache.list({
+    prefix: "user:",
+    cursor: listed.cursor,
+  });
+}
+```
+
+## Local Development
+
+During local development, KV uses file-based storage in `.wrangler/state/`. Data persists between dev server restarts.
+
+## Production Setup
+
+1. Create a KV namespace in Cloudflare:
+
+```bash
+wrangler kv namespace create my-cache
+```
+
+2. Copy the namespace ID and add it to your config:
+
+```typescript
+const cache = KV({
+  name: "my-cache",
+  id: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+});
+```
+
+## Example: API Response Cache
+
+```typescript
+import { Worker, KV, type InferEnv } from "better-wrangler";
+
+const cache = KV({ name: "api-cache", id: "xxx" });
+
+export const api = Worker({
+  name: "api",
+  entryPoint: "./src/index.ts",
+  bindings: { cache },
+});
+
+export type Env = InferEnv<typeof api>;
+```
+
+```typescript
+// src/index.ts
+import type { Env } from "../bw.config";
+
+interface CachedResponse {
+  data: unknown;
+  cachedAt: number;
+}
+
+export default {
+  async fetch(request: Request, env: Env) {
+    const url = new URL(request.url);
+    const cacheKey = `response:${url.pathname}`;
+
+    // Check cache first
+    const cached = await env.cache.get<CachedResponse>(cacheKey, "json");
+    if (cached) {
+      return Response.json({
+        ...cached.data,
+        _cached: true,
+        _cachedAt: cached.cachedAt,
+      });
+    }
+
+    // Fetch fresh data
+    const data = await fetchFromDatabase(url.pathname);
+
+    // Store in cache for 5 minutes
+    await env.cache.put(
+      cacheKey,
+      JSON.stringify({ data, cachedAt: Date.now() }),
+      { expirationTtl: 300 }
+    );
+
+    return Response.json(data);
+  },
+};
+```
+
+## Best Practices
+
+:::tip[Use appropriate TTLs]
+KV is eventually consistent. For frequently-updated data, use shorter TTLs or consider D1/Durable Objects instead.
+:::
+
+:::caution[Key size limits]
+Keys can be up to 512 bytes. Values can be up to 25 MB. For larger data, consider R2.
+:::

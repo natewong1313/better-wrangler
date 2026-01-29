@@ -1,0 +1,49 @@
+---
+title: Installation
+description: How to install better-wrangler in your project
+---
+
+## Prerequisites
+
+- **Node.js** 18+ or **Bun** 1.0+
+- A Cloudflare account (for production deployments)
+
+## Install
+
+Install better-wrangler as a dev dependency in your project:
+
+```bash
+# Using npm
+npm install -D better-wrangler
+
+# Using bun
+bun add -D better-wrangler
+
+# Using pnpm
+pnpm add -D better-wrangler
+
+# Using yarn
+yarn add -D better-wrangler
+```
+
+## Verify Installation
+
+After installation, you can verify it's working by running:
+
+```bash
+npx bw --help
+```
+
+You should see the available commands:
+
+```
+Usage: bw <command> [options]
+
+Commands:
+  bw dev   Sync config and start all workers in development mode
+  bw sync  Generate wrangler.jsonc files from bw.config.ts
+```
+
+## Next Steps
+
+Now that you have better-wrangler installed, head to the [Quick Start](/getting-started/quick-start/) guide to create your first configuration.

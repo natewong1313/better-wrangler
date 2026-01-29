@@ -1,0 +1,217 @@
+---
+title: R2 Storage
+description: Cloudflare's S3-compatible object storage binding
+---
+
+R2 is Cloudflare's S3-compatible object storage. Use the `R2()` function to create a binding.
+
+## Basic Usage
+
+```typescript
+import { Worker, R2, type InferEnv } from "better-wrangler";
+
+const storage = R2({ name: "my-bucket" });
+
+export const api = Worker({
+  name: "api",
+  entryPoint: "./src/index.ts",
+  bindings: { storage },
+});
+
+export type Env = InferEnv<typeof api>;
+```
+
+## Options Reference
+
+| Option | Type     | Required | Description            |
+| ------ | -------- | -------- | ---------------------- |
+| `name` | `string` | Yes      | Name of the R2 bucket  |
+
+### name
+
+The name of your R2 bucket. This must match an existing bucket in your Cloudflare account for production, or will be created locally for development.
+
+```typescript
+const storage = R2({ name: "user-uploads" });
+```
+
+## Using in Your Worker
+
+The binding is available as an `R2Bucket` type:
+
+```typescript
+import type { Env } from "../bw.config";
+
+export default {
+  async fetch(request: Request, env: Env) {
+    const url = new URL(request.url);
+    const key = url.pathname.slice(1); // Remove leading slash
+
+    // GET - Retrieve object
+    if (request.method === "GET") {
+      const object = await env.storage.get(key);
+      if (!object) {
+        return new Response("Not Found", { status: 404 });
+      }
+      return new Response(object.body, {
+        headers: {
+          "Content-Type": object.httpMetadata?.contentType ?? "application/octet-stream",
+        },
+      });
+    }
+
+    // PUT - Upload object
+    if (request.method === "PUT") {
+      await env.storage.put(key, request.body, {
+        httpMetadata: {
+          contentType: request.headers.get("Content-Type") ?? undefined,
+        },
+      });
+      return new Response("Uploaded", { status: 201 });
+    }
+
+    // DELETE - Remove object
+    if (request.method === "DELETE") {
+      await env.storage.delete(key);
+      return new Response("Deleted", { status: 200 });
+    }
+
+    return new Response("Method Not Allowed", { status: 405 });
+  },
+};
+```
+
+## Common Operations
+
+### List Objects
+
+```typescript
+const listed = await env.storage.list({
+  prefix: "images/",
+  limit: 100,
+});
+
+for (const object of listed.objects) {
+  console.log(object.key, object.size);
+}
+```
+
+### Upload with Metadata
+
+```typescript
+await env.storage.put("document.pdf", pdfData, {
+  httpMetadata: {
+    contentType: "application/pdf",
+    contentDisposition: 'attachment; filename="document.pdf"',
+  },
+  customMetadata: {
+    uploadedBy: "user-123",
+    version: "1.0",
+  },
+});
+```
+
+### Check if Object Exists
+
+```typescript
+const head = await env.storage.head("my-file.txt");
+if (head) {
+  console.log("File exists, size:", head.size);
+} else {
+  console.log("File not found");
+}
+```
+
+### Multipart Uploads
+
+For large files, use multipart uploads:
+
+```typescript
+const upload = await env.storage.createMultipartUpload("large-file.zip");
+
+const part1 = await upload.uploadPart(1, chunk1);
+const part2 = await upload.uploadPart(2, chunk2);
+
+await upload.complete([part1, part2]);
+```
+
+## Local Development
+
+During local development, R2 uses file-based storage in `.wrangler/state/`. Files persist between dev server restarts.
+
+## Production Setup
+
+1. Create an R2 bucket in Cloudflare:
+
+```bash
+wrangler r2 bucket create my-bucket
+```
+
+2. Use the same name in your config:
+
+```typescript
+const storage = R2({ name: "my-bucket" });
+```
+
+## Example: Image Upload Service
+
+```typescript
+import { Worker, R2, type InferEnv } from "better-wrangler";
+
+const images = R2({ name: "user-images" });
+
+export const api = Worker({
+  name: "image-service",
+  entryPoint: "./src/index.ts",
+  bindings: { images },
+});
+
+export type Env = InferEnv<typeof api>;
+```
+
+```typescript
+// src/index.ts
+import type { Env } from "../bw.config";
+
+export default {
+  async fetch(request: Request, env: Env) {
+    const url = new URL(request.url);
+
+    // Upload image: POST /upload
+    if (url.pathname === "/upload" && request.method === "POST") {
+      const formData = await request.formData();
+      const file = formData.get("file") as File;
+
+      if (!file) {
+        return new Response("No file provided", { status: 400 });
+      }
+
+      const key = `${Date.now()}-${file.name}`;
+      await env.images.put(key, file.stream(), {
+        httpMetadata: { contentType: file.type },
+      });
+
+      return Response.json({ key, url: `/images/${key}` });
+    }
+
+    // Get image: GET /images/:key
+    if (url.pathname.startsWith("/images/")) {
+      const key = url.pathname.replace("/images/", "");
+      const object = await env.images.get(key);
+
+      if (!object) {
+        return new Response("Not Found", { status: 404 });
+      }
+
+      return new Response(object.body, {
+        headers: {
+          "Content-Type": object.httpMetadata?.contentType ?? "image/png",
+          "Cache-Control": "public, max-age=31536000",
+        },
+      });
+    }
+
+    return new Response("Not Found", { status: 404 });
+  },
+};
+```

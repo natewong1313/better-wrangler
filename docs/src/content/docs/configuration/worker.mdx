@@ -1,0 +1,205 @@
+---
+title: Worker Options
+description: Complete reference for Worker configuration options
+---
+
+The `Worker()` function defines a Cloudflare Worker and its configuration.
+
+## Basic Usage
+
+```typescript
+import { Worker } from "better-wrangler";
+
+export const api = Worker({
+  name: "api",
+  entryPoint: "./src/index.ts",
+});
+```
+
+## Options Reference
+
+| Option          | Type                          | Required | Description                                    |
+| --------------- | ----------------------------- | -------- | ---------------------------------------------- |
+| `name`          | `string`                      | Yes      | Unique name for the worker                     |
+| `entryPoint`    | `string`                      | Yes      | Path to the worker's entry file                |
+| `port`          | `number`                      | No       | Port for the dev server (default: auto-assigned from 8787) |
+| `primary`       | `boolean`                     | No       | Mark as primary worker in monorepo             |
+| `bindings`      | `Record<string, Binding>`     | No       | Resource bindings (D1, KV, R2, etc.)           |
+| `vars`          | `Record<string, string>`      | No       | Environment variables                          |
+| `triggers`      | `{ crons?: string[] }`        | No       | Cron triggers for scheduled workers            |
+| `compatibility` | `{ date?: string; flags?: string[] }` | No | Compatibility settings                         |
+
+## Detailed Options
+
+### name
+
+A unique identifier for your worker. This becomes the worker name in Cloudflare.
+
+```typescript
+Worker({
+  name: "my-api-worker", // Must be unique across your config
+  entryPoint: "./src/index.ts",
+});
+```
+
+### entryPoint
+
+Path to your worker's main file, relative to the config file location.
+
+```typescript
+Worker({
+  name: "api",
+  entryPoint: "./src/workers/api/index.ts",
+});
+```
+
+### port
+
+Custom port for the development server. If not specified, ports are auto-assigned starting from 8787.
+
+```typescript
+Worker({
+  name: "api",
+  entryPoint: "./src/index.ts",
+  port: 3000, // Dev server at http://localhost:3000
+});
+```
+
+### primary
+
+In a monorepo with multiple workers, mark one as primary. The primary worker receives priority port assignment.
+
+```typescript
+export const api = Worker({
+  name: "api",
+  entryPoint: "./src/api/index.ts",
+  primary: true, // This worker gets port 8787
+});
+
+export const cron = Worker({
+  name: "cron",
+  entryPoint: "./src/cron/index.ts",
+  // Gets next available port (8788)
+});
+```
+
+### bindings
+
+Connect your worker to Cloudflare resources. See the [Bindings](/bindings/) section for all available binding types.
+
+```typescript
+import { Worker, D1, KV, R2 } from "better-wrangler";
+
+const db = D1({ name: "my-database" });
+const cache = KV({ name: "my-cache" });
+const storage = R2({ name: "my-bucket" });
+
+export const api = Worker({
+  name: "api",
+  entryPoint: "./src/index.ts",
+  bindings: {
+    db,      // Available as env.db (D1Database)
+    cache,   // Available as env.cache (KVNamespace)
+    storage, // Available as env.storage (R2Bucket)
+  },
+});
+```
+
+### vars
+
+Define environment variables accessible in your worker.
+
+```typescript
+Worker({
+  name: "api",
+  entryPoint: "./src/index.ts",
+  vars: {
+    API_VERSION: "v1",
+    ENVIRONMENT: "development",
+  },
+});
+```
+
+Access in your worker:
+
+```typescript
+export default {
+  async fetch(request: Request, env: Env) {
+    console.log(env.API_VERSION); // "v1"
+    return new Response("OK");
+  },
+};
+```
+
+### triggers
+
+Configure cron triggers for scheduled workers.
+
+```typescript
+Worker({
+  name: "cleanup-worker",
+  entryPoint: "./src/cleanup.ts",
+  triggers: {
+    crons: [
+      "0 * * * *",     // Every hour
+      "0 0 * * *",     // Daily at midnight
+    ],
+  },
+});
+```
+
+Your worker should export a `scheduled` handler:
+
+```typescript
+export default {
+  async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
+    // Run cleanup tasks
+  },
+};
+```
+
+### compatibility
+
+Set compatibility date and flags for your worker.
+
+```typescript
+Worker({
+  name: "api",
+  entryPoint: "./src/index.ts",
+  compatibility: {
+    date: "2024-01-01",
+    flags: ["nodejs_compat"],
+  },
+});
+```
+
+## Complete Example
+
+```typescript
+import { Worker, D1, KV, DurableObject, type InferEnv } from "better-wrangler";
+
+const db = D1({ name: "production-db", id: "xxxx-xxxx-xxxx" });
+const cache = KV({ name: "api-cache" });
+const sessions = DurableObject({
+  name: "sessions",
+  className: "SessionManager",
+  classPath: "./src/session.ts",
+});
+
+export const api = Worker({
+  name: "api",
+  entryPoint: "./src/index.ts",
+  port: 8080,
+  primary: true,
+  bindings: { db, cache, sessions },
+  vars: {
+    LOG_LEVEL: "info",
+  },
+  compatibility: {
+    date: "2024-01-01",
+    flags: ["nodejs_compat"],
+  },
+});
+
+export type Env = InferEnv<typeof api>;
+```

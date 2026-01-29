@@ -1,0 +1,348 @@
+---
+title: Monorepo Setup
+description: Running multiple Workers in a single project
+---
+
+better-wrangler excels at managing multiple Workers in a monorepo. This guide covers how to configure and run multiple workers together.
+
+## Basic Multi-Worker Setup
+
+Define multiple workers in a single `bw.config.ts`:
+
+```typescript
+// bw.config.ts
+import { Worker, D1, type InferEnv } from "better-wrangler";
+
+const db = D1({ name: "shared-db" });
+
+export const api = Worker({
+  name: "api",
+  entryPoint: "./src/api/index.ts",
+  bindings: { db },
+});
+
+export const admin = Worker({
+  name: "admin",
+  entryPoint: "./src/admin/index.ts",
+  bindings: { db },
+});
+
+export const cron = Worker({
+  name: "cron-worker",
+  entryPoint: "./src/cron/index.ts",
+  bindings: { db },
+});
+
+export type ApiEnv = InferEnv<typeof api>;
+export type AdminEnv = InferEnv<typeof admin>;
+export type CronEnv = InferEnv<typeof cron>;
+```
+
+## Project Structure
+
+A typical monorepo structure:
+
+```
+my-project/
+├── bw.config.ts              # Shared configuration
+├── package.json
+├── src/
+│   ├── api/
+│   │   ├── index.ts          # API worker entry
+│   │   └── routes/
+│   ├── admin/
+│   │   ├── index.ts          # Admin worker entry
+│   │   └── handlers/
+│   └── cron/
+│       └── index.ts          # Cron worker entry
+├── shared/
+│   ├── types.ts              # Shared TypeScript types
+│   └── utils.ts              # Shared utilities
+└── wrangler.jsonc            # Auto-generated (per worker)
+```
+
+## Port Assignment
+
+### Automatic Ports
+
+By default, workers are assigned ports starting from 8787:
+
+```typescript
+export const api = Worker({ ... });   // Port 8787
+export const admin = Worker({ ... }); // Port 8788
+export const cron = Worker({ ... });  // Port 8789
+```
+
+### Custom Ports
+
+Specify custom ports for each worker:
+
+```typescript
+export const api = Worker({
+  name: "api",
+  entryPoint: "./src/api/index.ts",
+  port: 3000,
+});
+
+export const admin = Worker({
+  name: "admin",
+  entryPoint: "./src/admin/index.ts",
+  port: 3001,
+});
+```
+
+### Primary Worker
+
+Mark a worker as primary to ensure it gets the first available port:
+
+```typescript
+export const api = Worker({
+  name: "api",
+  entryPoint: "./src/api/index.ts",
+  primary: true, // Gets port 8787 even if defined later
+});
+```
+
+## Shared Bindings
+
+Bindings can be shared across multiple workers:
+
+```typescript
+import { Worker, D1, KV, R2, DurableObject } from "better-wrangler";
+
+// Define shared resources once
+const db = D1({ name: "app-db" });
+const cache = KV({ name: "app-cache" });
+const storage = R2({ name: "app-storage" });
+const sessions = DurableObject({
+  name: "sessions",
+  className: "SessionManager",
+  classPath: "./src/shared/session.ts",
+});
+
+// Use in multiple workers
+export const api = Worker({
+  name: "api",
+  entryPoint: "./src/api/index.ts",
+  bindings: { db, cache, sessions },
+});
+
+export const admin = Worker({
+  name: "admin",
+  entryPoint: "./src/admin/index.ts",
+  bindings: { db, cache, storage, sessions },
+});
+
+export const public = Worker({
+  name: "public",
+  entryPoint: "./src/public/index.ts",
+  bindings: { cache }, // Only needs cache
+});
+```
+
+## Cross-Worker Communication
+
+### Via Durable Objects
+
+The recommended way for workers to communicate is through shared Durable Objects:
+
+```typescript
+import { Worker, DurableObject, type InferEnv } from "better-wrangler";
+
+const sharedState = DurableObject({
+  name: "state",
+  className: "SharedState",
+  classPath: "./src/shared/state.ts",
+});
+
+// API worker writes to shared state
+export const api = Worker({
+  name: "api",
+  entryPoint: "./src/api/index.ts",
+  bindings: { state: sharedState },
+});
+
+// Background worker reads from shared state
+export const worker = Worker({
+  name: "background",
+  entryPoint: "./src/background/index.ts",
+  bindings: { state: sharedState },
+});
+```
+
+Both workers can access the same Durable Object instances:
+
+```typescript
+// In api worker
+const id = env.state.idFromName("global");
+const stub = env.state.get(id);
+await stub.fetch(new Request("http://internal/set", {
+  method: "POST",
+  body: JSON.stringify({ key: "value" }),
+}));
+```
+
+```typescript
+// In background worker - accesses the same instance
+const id = env.state.idFromName("global");
+const stub = env.state.get(id);
+const response = await stub.fetch(new Request("http://internal/get"));
+const data = await response.json();
+```
+
+### Via Queues
+
+For asynchronous communication, use Queues:
+
+```typescript
+import { Worker, QueueProducer, QueueConsumer } from "better-wrangler";
+
+const taskProducer = QueueProducer({
+  name: "tasks",
+  queue: "background-tasks",
+});
+
+const taskConsumer = QueueConsumer({
+  queue: "background-tasks",
+});
+
+export const api = Worker({
+  name: "api",
+  entryPoint: "./src/api/index.ts",
+  bindings: { tasks: taskProducer },
+});
+
+export const worker = Worker({
+  name: "background",
+  entryPoint: "./src/background/index.ts",
+  bindings: { taskConsumer },
+});
+```
+
+## Running the Dev Server
+
+Start all workers with a single command:
+
+```bash
+bw dev
+```
+
+This will:
+1. Generate `wrangler.jsonc` for each worker
+2. Start all workers in parallel using Miniflare
+3. Configure cross-worker bindings automatically
+4. Watch for changes and reload
+
+Output shows each worker's URL:
+
+```
+[api]    Ready at http://localhost:8787
+[admin]  Ready at http://localhost:8788
+[cron]   Ready at http://localhost:8789
+```
+
+## Deployment
+
+Each worker is deployed independently. First sync the config:
+
+```bash
+bw sync
+```
+
+Then deploy each worker:
+
+```bash
+# Deploy API worker
+wrangler deploy -c ./src/api/wrangler.jsonc
+
+# Deploy admin worker
+wrangler deploy -c ./src/admin/wrangler.jsonc
+```
+
+Or create a deployment script:
+
+```json
+// package.json
+{
+  "scripts": {
+    "deploy": "bw sync && npm run deploy:api && npm run deploy:admin",
+    "deploy:api": "wrangler deploy -c ./src/api/wrangler.jsonc",
+    "deploy:admin": "wrangler deploy -c ./src/admin/wrangler.jsonc"
+  }
+}
+```
+
+## Example: Full-Stack Monorepo
+
+```typescript
+// bw.config.ts
+import {
+  Worker,
+  D1,
+  KV,
+  R2,
+  DurableObject,
+  QueueProducer,
+  QueueConsumer,
+  type InferEnv,
+} from "better-wrangler";
+
+// Shared resources
+const db = D1({ name: "app-db", id: "xxx" });
+const cache = KV({ name: "app-cache", id: "xxx" });
+const uploads = R2({ name: "user-uploads" });
+
+const sessions = DurableObject({
+  name: "sessions",
+  className: "SessionManager",
+  classPath: "./src/shared/session.ts",
+});
+
+const emailQueue = QueueProducer({
+  name: "emails",
+  queue: "email-notifications",
+});
+
+const emailConsumer = QueueConsumer({
+  queue: "email-notifications",
+  maxBatchSize: 25,
+});
+
+// Public API
+export const api = Worker({
+  name: "api",
+  entryPoint: "./src/api/index.ts",
+  primary: true,
+  bindings: { db, cache, sessions, emailQueue: emailQueue },
+});
+
+// Admin dashboard API
+export const admin = Worker({
+  name: "admin",
+  entryPoint: "./src/admin/index.ts",
+  bindings: { db, cache, uploads, sessions },
+});
+
+// Background email worker
+export const emailWorker = Worker({
+  name: "email-worker",
+  entryPoint: "./src/email/index.ts",
+  bindings: { db, emailConsumer },
+});
+
+// Scheduled cleanup
+export const cron = Worker({
+  name: "cron",
+  entryPoint: "./src/cron/index.ts",
+  bindings: { db, cache },
+  triggers: {
+    crons: ["0 0 * * *"], // Daily at midnight
+  },
+});
+
+// Export types
+export type ApiEnv = InferEnv<typeof api>;
+export type AdminEnv = InferEnv<typeof admin>;
+export type EmailEnv = InferEnv<typeof emailWorker>;
+export type CronEnv = InferEnv<typeof cron>;
+```

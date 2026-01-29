@@ -1,0 +1,113 @@
+---
+title: CLI Commands
+description: Reference for all better-wrangler CLI commands
+---
+
+better-wrangler provides two main commands for managing your Cloudflare Workers configuration.
+
+## bw dev
+
+Start all workers in development mode.
+
+```bash
+bw dev [options]
+```
+
+### Options
+
+| Option     | Description                                           |
+| ---------- | ----------------------------------------------------- |
+| `--legacy` | Use wrangler's built-in dev server instead of Miniflare |
+
+### Default Behavior
+
+By default, `bw dev` uses a Miniflare-based development server that:
+
+- Runs all workers in parallel in a single process
+- Supports cross-worker Durable Object bindings
+- Provides fast hot reloading
+- Automatically generates `wrangler.jsonc` files before starting
+
+### Example
+
+```bash
+# Start with Miniflare (default)
+bw dev
+
+# Start with wrangler's legacy dev server
+bw dev --legacy
+```
+
+### Port Assignment
+
+Workers are assigned ports starting from 8787. If you have multiple workers, they'll be assigned sequential ports:
+
+- First worker: `http://localhost:8787`
+- Second worker: `http://localhost:8788`
+- And so on...
+
+You can also specify a port in your worker configuration:
+
+```typescript
+export const api = Worker({
+  name: "api",
+  entryPoint: "./src/index.ts",
+  port: 3000, // Custom port
+});
+```
+
+---
+
+## bw sync
+
+Generate `wrangler.jsonc` files from your `bw.config.ts` without starting the dev server.
+
+```bash
+bw sync
+```
+
+### What It Does
+
+1. Reads your `bw.config.ts` configuration
+2. Resolves all bindings and cross-worker references
+3. Generates `wrangler.jsonc` files for each worker
+4. Updates Durable Object migration files if needed
+
+### When to Use
+
+- Before deploying to production with `wrangler deploy`
+- To inspect the generated configuration
+- In CI/CD pipelines to ensure config is up to date
+
+### Example Workflow
+
+```bash
+# Generate config files
+bw sync
+
+# Deploy with wrangler
+wrangler deploy -c ./path/to/worker/wrangler.jsonc
+```
+
+---
+
+## Configuration File
+
+Both commands look for a `bw.config.ts` file in the current directory. This file should export one or more Worker configurations:
+
+```typescript
+// bw.config.ts
+import { Worker } from "better-wrangler";
+
+export const api = Worker({
+  name: "api",
+  entryPoint: "./src/api/index.ts",
+});
+
+export const worker = Worker({
+  name: "worker",
+  entryPoint: "./src/worker/index.ts",
+});
+```
+
+Each exported Worker will be processed by the CLI commands.

@@ -1,0 +1,162 @@
+---
+title: D1 Database
+description: Cloudflare's serverless SQL database binding
+---
+
+D1 is Cloudflare's serverless SQL database. Use the `D1()` function to create a binding.
+
+## Basic Usage
+
+```typescript
+import { Worker, D1, type InferEnv } from "better-wrangler";
+
+const db = D1({ name: "my-database" });
+
+export const api = Worker({
+  name: "api",
+  entryPoint: "./src/index.ts",
+  bindings: { db },
+});
+
+export type Env = InferEnv<typeof api>;
+```
+
+## Options Reference
+
+| Option | Type     | Required | Description                              |
+| ------ | -------- | -------- | ---------------------------------------- |
+| `name` | `string` | Yes      | Name of the D1 database                  |
+| `id`   | `string` | No       | Database ID for production deployments   |
+
+### name
+
+The name of your D1 database. This is used to identify the database in Cloudflare and for local development.
+
+```typescript
+const db = D1({ name: "production-db" });
+```
+
+### id
+
+The D1 database ID from your Cloudflare dashboard. Required for production deployments, optional for local development.
+
+```typescript
+const db = D1({
+  name: "production-db",
+  id: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+});
+```
+
+:::tip
+You can find your database ID in the Cloudflare dashboard under Workers & Pages > D1.
+:::
+
+## Using in Your Worker
+
+The binding is available as a `D1Database` type:
+
+```typescript
+import type { Env } from "../bw.config";
+
+export default {
+  async fetch(request: Request, env: Env) {
+    // Query with parameters
+    const { results } = await env.db
+      .prepare("SELECT * FROM users WHERE id = ?")
+      .bind(1)
+      .all();
+
+    // Insert data
+    await env.db
+      .prepare("INSERT INTO users (name, email) VALUES (?, ?)")
+      .bind("Alice", "alice@example.com")
+      .run();
+
+    // Batch queries
+    await env.db.batch([
+      env.db.prepare("INSERT INTO logs (message) VALUES (?)").bind("Log 1"),
+      env.db.prepare("INSERT INTO logs (message) VALUES (?)").bind("Log 2"),
+    ]);
+
+    return Response.json(results);
+  },
+};
+```
+
+## Local Development
+
+During local development, D1 uses a SQLite database stored in `.wrangler/state/`. Your data persists between dev server restarts.
+
+To run migrations locally, you can use:
+
+```bash
+wrangler d1 migrations apply my-database --local
+```
+
+## Production Setup
+
+1. Create a D1 database in Cloudflare:
+
+```bash
+wrangler d1 create my-database
+```
+
+2. Copy the database ID and add it to your config:
+
+```typescript
+const db = D1({
+  name: "my-database",
+  id: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+});
+```
+
+3. Run migrations:
+
+```bash
+wrangler d1 migrations apply my-database --remote
+```
+
+## Example: Complete CRUD API
+
+```typescript
+import { Worker, D1, type InferEnv } from "better-wrangler";
+
+const db = D1({ name: "todos-db", id: "xxx-xxx-xxx" });
+
+export const api = Worker({
+  name: "todos-api",
+  entryPoint: "./src/index.ts",
+  bindings: { db },
+});
+
+export type Env = InferEnv<typeof api>;
+```
+
+```typescript
+// src/index.ts
+import type { Env } from "../bw.config";
+
+export default {
+  async fetch(request: Request, env: Env) {
+    const url = new URL(request.url);
+
+    if (url.pathname === "/todos" && request.method === "GET") {
+      const { results } = await env.db
+        .prepare("SELECT * FROM todos")
+        .all();
+      return Response.json(results);
+    }
+
+    if (url.pathname === "/todos" && request.method === "POST") {
+      const { title } = await request.json<{ title: string }>();
+      await env.db
+        .prepare("INSERT INTO todos (title, completed) VALUES (?, ?)")
+        .bind(title, false)
+        .run();
+      return new Response("Created", { status: 201 });
+    }
+
+    return new Response("Not Found", { status: 404 });
+  },
+};
+```

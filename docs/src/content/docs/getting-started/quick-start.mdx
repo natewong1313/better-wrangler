@@ -1,0 +1,95 @@
+---
+title: Quick Start
+description: Create your first better-wrangler configuration in minutes
+---
+
+This guide will walk you through creating a basic Worker configuration with better-wrangler.
+
+## Create Configuration File
+
+Create a `bw.config.ts` file in your project root:
+
+```typescript
+// bw.config.ts
+import { Worker, type InferEnv } from "better-wrangler";
+
+export const api = Worker({
+  name: "api",
+  entryPoint: "./src/index.ts",
+});
+
+export type Env = InferEnv<typeof api>;
+```
+
+## Create Your Worker
+
+Create the entry point file:
+
+```typescript
+// src/index.ts
+import type { Env } from "../bw.config";
+
+export default {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    return new Response("Hello from better-wrangler!");
+  },
+};
+```
+
+## Start Development Server
+
+Run the development server:
+
+```bash
+bw dev
+```
+
+This will:
+
+1. Generate a `wrangler.jsonc` file from your configuration
+2. Start the Miniflare-based development server
+3. Watch for changes and reload automatically
+
+Your worker is now running at `http://localhost:8787` (or the next available port).
+
+## Adding Bindings
+
+Let's add a KV namespace to store data:
+
+```typescript
+// bw.config.ts
+import { Worker, KV, type InferEnv } from "better-wrangler";
+
+const cache = KV({ name: "my-cache" });
+
+export const api = Worker({
+  name: "api",
+  entryPoint: "./src/index.ts",
+  bindings: { cache },
+});
+
+export type Env = InferEnv<typeof api>;
+```
+
+Now update your worker to use the binding:
+
+```typescript
+// src/index.ts
+import type { Env } from "../bw.config";
+
+export default {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    // env.cache is fully typed as KVNamespace
+    const value = await env.cache.get("key");
+    return new Response(value ?? "No value found");
+  },
+};
+```
+
+The `Env` type is automatically inferred from your configuration, giving you full type safety for all bindings.
+
+## Next Steps
+
+- Learn about all [CLI Commands](/getting-started/cli-commands/)
+- Explore [Configuration Options](/configuration/overview/)
+- See all available [Bindings](/bindings/)
