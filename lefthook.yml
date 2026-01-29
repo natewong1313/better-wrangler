@@ -1,0 +1,6 @@
+pre-commit:
+  commands:
+    lint:
+      run: bun run lint
+    format:
+      run: bun run format && git add -u
