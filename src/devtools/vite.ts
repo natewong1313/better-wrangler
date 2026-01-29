@@ -37,6 +37,12 @@ export async function startViteServer(
     },
     // Suppress Vite's own logging since we have our own logger
     logLevel: "silent",
+    // Path alias for shadcn imports
+    resolve: {
+      alias: {
+        "@": uiRoot,
+      },
+    },
   });
 
   await server.listen();
