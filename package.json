@@ -1,6 +1,6 @@
 {
 	"name": "better-wrangler",
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"description": "drop in replacement for wrangler",
 	"author": "natewong1313",
 	"license": "MIT",
@@ -12,7 +12,12 @@
 		"url": "https://github.com/natewong1313/better-wrangler/issues"
 	},
 	"homepage": "https://github.com/natewong1313/better-wrangler#readme",
-	"keywords": ["wrangler", "cloudflare", "workers", "testing"],
+	"keywords": [
+		"wrangler",
+		"cloudflare",
+		"workers",
+		"testing"
+	],
 	"type": "module",
 	"main": "./dist/index.mjs",
 	"types": "./dist/index.d.mts",
@@ -31,8 +36,13 @@
 			"import": "./dist/preload.mjs"
 		}
 	},
-	"files": ["dist"],
-	"workspaces": [".", "examples/*"],
+	"files": [
+		"dist"
+	],
+	"workspaces": [
+		".",
+		"examples/*"
+	],
 	"scripts": {
 		"build": "tsdown",
 		"prepublishOnly": "bun run build",
