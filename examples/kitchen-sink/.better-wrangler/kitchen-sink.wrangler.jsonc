@@ -1,0 +1,39 @@
+{
+	"name": "kitchen-sink",
+	"main": "./kitchen-sink.entry.ts",
+	"compatibility_date": "2026-01-28",
+	"dev": {
+		"port": 8791
+	},
+	"observability": {
+		"enabled": true
+	},
+	"kv_namespaces": [
+		{
+			"binding": "CACHE",
+			"id": "kitchen-sink-cache"
+		}
+	],
+	"r2_buckets": [
+		{
+			"binding": "BUCKET",
+			"bucket_name": "kitchen-sink-bucket"
+		}
+	],
+	"durable_objects": {
+		"bindings": [
+			{
+				"name": "COUNTER",
+				"class_name": "Counter"
+			}
+		]
+	},
+	"migrations": [
+		{
+			"tag": "v1",
+			"new_sqlite_classes": [
+				"Counter"
+			]
+		}
+	]
+}

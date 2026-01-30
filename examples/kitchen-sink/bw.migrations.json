@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "workers": {
+    "kitchen-sink": {
+      "currentTag": 1,
+      "classes": {
+        "Counter": {
+          "storage": "sqlite",
+          "classPath": "./src/counter-do.ts",
+          "addedInTag": 1
+        }
+      },
+      "history": [
+        {
+          "tag": "v1",
+          "new_sqlite_classes": [
+            "Counter"
+          ]
+        }
+      ]
+    }
+  }
+}
