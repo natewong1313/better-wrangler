@@ -22,6 +22,7 @@ export const TEMPLATES = [
   { name: "r2-storage", description: "R2 Bucket for file storage" },
   { name: "drizzle-orm", description: "D1 with Drizzle ORM integration" },
   { name: "monorepo", description: "Multi-worker setup with shared Durable Objects" },
+  { name: "kitchen-sink", description: "All bindings: KV, R2, and Durable Objects" },
 ] as const;
 
 export type TemplateName = (typeof TEMPLATES)[number]["name"];
