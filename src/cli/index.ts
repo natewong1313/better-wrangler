@@ -6,6 +6,7 @@ import { initCommand } from "./commands/init";
 import { addCommand } from "./commands/add";
 import { deployCommand } from "./commands/deploy";
 import { createCommand, type ResourceTypeFilter } from "./commands/create";
+import { createAppCommand } from "./commands/create-app";
 
 interface ExtendedParsedArgs extends ParsedArgs {
   force?: boolean;
@@ -82,6 +83,7 @@ function printHelp() {
   console.log("");
   console.log("Commands:");
   console.log("  init              Initialize a new better-wrangler project");
+  console.log("  create-app [name] Create a new project from a template");
   console.log("  add [resource]    Add a resource to your config (interactive if no resource)");
   console.log("                    Resources: d1, kv, r2, do, queue, worker");
   console.log("  create [type]     Create missing Cloudflare resources");
@@ -101,6 +103,7 @@ function printHelp() {
   console.log("");
   console.log("Examples:");
   console.log("  bw init                     # Create a new bw.config.ts");
+  console.log("  bw create-app my-api        # Create project from template");
   console.log("  bw add                      # Interactive resource selection");
   console.log("  bw add d1                   # Add a D1 database binding");
   console.log("  bw create                   # Create all missing resources");
@@ -117,7 +120,7 @@ function printHelp() {
 async function main() {
   const args = parseArgs();
 
-  const validCommands = ["init", "add", "create", "dev", "sync", "deploy"];
+  const validCommands = ["init", "add", "create", "create-app", "dev", "sync", "deploy"];
 
   if (!args.command || !validCommands.includes(args.command)) {
     printHelp();
@@ -127,6 +130,12 @@ async function main() {
   // Commands that don't require an existing config file
   if (args.command === "init") {
     await initCommand({ force: args.force });
+    return;
+  }
+
+  if (args.command === "create-app") {
+    const projectName = args.workerFilter[0]; // First non-flag arg is project name
+    await createAppCommand(projectName, { force: args.force });
     return;
   }
 
