@@ -367,6 +367,29 @@ export function getDefaultProjectName(): string {
 }
 
 /**
+ * Template definition for create-app
+ */
+export interface Template {
+  name: string;
+  description: string;
+}
+
+/**
+ * Prompt for template selection
+ */
+export async function promptTemplateSelection<T extends Template>(
+  templates: readonly T[],
+): Promise<T["name"]> {
+  return select({
+    message: "Select a template:",
+    choices: templates.map((t) => ({
+      name: `${t.name.padEnd(14)} - ${t.description}`,
+      value: t.name,
+    })),
+  });
+}
+
+/**
  * Validate that a string is a valid JavaScript identifier
  */
 export function isValidIdentifier(name: string): boolean {
