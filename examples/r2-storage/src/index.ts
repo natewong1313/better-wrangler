@@ -44,7 +44,8 @@ export default {
 
       // PUT /objects/:key - Upload object
       case "PUT": {
-        const contentType = request.headers.get("content-type") ?? "application/octet-stream";
+        const contentType =
+          request.headers.get("content-type") ?? "application/octet-stream";
         await env.BUCKET.put(key, request.body, {
           httpMetadata: { contentType },
         });

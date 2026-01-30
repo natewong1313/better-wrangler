@@ -30,8 +30,21 @@ export type MigrationState = {
   workers: Record<string, WorkerMigrationState>;
 };
 
+export type MigrationErrorType =
+  | "ambiguous_removal"
+  | "duplicate_rename_source"
+  | "rename_to_existing_class"
+  | "storage_type_change"
+  | "rename_delete_conflict";
+
 export type MigrationError = {
-  type: "ambiguous_removal";
+  type: MigrationErrorType;
+  className: string;
+  message: string;
+};
+
+export type MigrationWarning = {
+  type: "rename_source_not_found";
   className: string;
   message: string;
 };
@@ -40,6 +53,7 @@ export type ComputeMigrationsResult = {
   migrations: WranglerMigration[];
   updatedState: MigrationState;
   errors: MigrationError[];
+  warnings: MigrationWarning[];
 };
 
 type DOInfo = {
@@ -184,8 +198,96 @@ export function computeMigrations(
     });
   }
 
-  // Detect changes
+  const errors: MigrationError[] = [];
+  const warnings: MigrationWarning[] = [];
   const explicitDeletes = new Set(deletedDurableObjects);
+
+  // === VALIDATION 1: Check for duplicate _renamedFrom sources ===
+  const renameSourceCounts = new Map<string, string[]>(); // oldName -> [newNames that claim it]
+  for (const [newName, oldName] of explicitRenames) {
+    const existing = renameSourceCounts.get(oldName) ?? [];
+    existing.push(newName);
+    renameSourceCounts.set(oldName, existing);
+  }
+  for (const [oldName, newNames] of renameSourceCounts) {
+    if (newNames.length > 1) {
+      errors.push({
+        type: "duplicate_rename_source",
+        className: oldName,
+        message:
+          `Multiple classes claim to be renamed from '${oldName}': ${newNames.join(", ")}. ` +
+          `Each class can only be renamed once.`,
+      });
+    }
+  }
+
+  // === VALIDATION 2: Check for _renamedFrom pointing to non-existent class ===
+  for (const [newName, oldName] of explicitRenames) {
+    if (!stored.has(oldName)) {
+      warnings.push({
+        type: "rename_source_not_found",
+        className: newName,
+        message:
+          `Class '${newName}' has '_renamedFrom: "${oldName}"' but '${oldName}' does not exist in migration state. ` +
+          `The _renamedFrom will be ignored.`,
+      });
+    }
+  }
+
+  // === VALIDATION 3: Check for rename to existing class name ===
+  for (const [newName, oldName] of explicitRenames) {
+    // If the new name already exists in stored state AND it's not the same as oldName
+    if (stored.has(newName) && newName !== oldName) {
+      errors.push({
+        type: "rename_to_existing_class",
+        className: newName,
+        message:
+          `Cannot rename '${oldName}' to '${newName}' because '${newName}' already exists. ` +
+          `Delete the existing class first or choose a different name.`,
+      });
+    }
+  }
+
+  // === VALIDATION 4: Check for storage type change during rename ===
+  for (const [newName, oldName] of explicitRenames) {
+    const storedInfo = stored.get(oldName);
+    const currentInfo = current.get(newName);
+    if (storedInfo && currentInfo && storedInfo.storage !== currentInfo.storage) {
+      errors.push({
+        type: "storage_type_change",
+        className: newName,
+        message:
+          `Cannot change storage type during rename from '${oldName}' to '${newName}'. ` +
+          `Storage was '${storedInfo.storage}' but is now '${currentInfo.storage}'. ` +
+          `Cloudflare does not support changing storage backends for existing Durable Object classes.`,
+      });
+    }
+  }
+
+  // === VALIDATION 5: Check for conflict between rename and delete ===
+  for (const [_newName, oldName] of explicitRenames) {
+    if (explicitDeletes.has(oldName)) {
+      errors.push({
+        type: "rename_delete_conflict",
+        className: oldName,
+        message:
+          `Class '${oldName}' is both marked for rename and deletion. ` +
+          `Remove it from either '_renamedFrom' or 'deletedDurableObjects'.`,
+      });
+    }
+  }
+
+  // Return early if there are validation errors
+  if (errors.length > 0) {
+    return {
+      migrations: workerState.history,
+      updatedState: state,
+      errors,
+      warnings,
+    };
+  }
+
+  // Detect changes
   const { added, removed, renames, ambiguous } = detectChanges(
     current,
     stored,
@@ -194,7 +296,6 @@ export function computeMigrations(
   );
 
   // Check for ambiguous cases - return errors
-  const errors: MigrationError[] = [];
   for (const className of ambiguous) {
     errors.push({
       type: "ambiguous_removal",
@@ -211,6 +312,7 @@ export function computeMigrations(
       migrations: workerState.history,
       updatedState: state,
       errors,
+      warnings,
     };
   }
 
@@ -223,6 +325,7 @@ export function computeMigrations(
       migrations: workerState.history,
       updatedState: state,
       errors: [],
+      warnings,
     };
   }
 
@@ -302,6 +405,7 @@ export function computeMigrations(
     migrations: updatedWorkerState.history,
     updatedState,
     errors: [],
+    warnings,
   };
 }
 

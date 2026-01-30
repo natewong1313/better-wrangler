@@ -16,8 +16,6 @@ better-wrangler provides a type-safe way to configure multiple Cloudflare Worker
 
 ## Installation
 
-*coming soon*
-
 ```bash
 npm install better-wrangler
 ```
@@ -52,10 +50,10 @@ export const worker = Worker({
 Use typed bindings in your worker:
 
 ```typescript
-import { worker1 } from "../../bw.config";
+import { worker } from "../../bw.config";
 
 export default {
-  async fetch(request: Request, env: typeof worker1.Env) {
+  async fetch(request: Request, env: typeof worker.Env) {
     // env.DO and env.DB are fully typed
     const id = env.DO.idFromName("my-instance");
     const stub = env.DO.get(id);
@@ -83,6 +81,18 @@ bw dev worker-1 worker-2
 bw dev --legacy
 ```
 
+**Miniflare mode (default):**
+- Runs all workers in a single process
+- Supports cross-worker Durable Object communication
+- Hot reloads on file changes
+- Auto-applies D1 migrations from `migrationsDir`
+- Watches `bw.config.ts` and auto-restarts on changes
+
+**Legacy mode (`--legacy`):**
+- Uses separate wrangler processes per worker
+- Does NOT support cross-worker Durable Objects
+- Useful for debugging wrangler-specific issues
+
 ### `bw sync`
 
 Generates `wrangler.jsonc` files from your `bw.config.ts` without starting the dev server.
@@ -90,6 +100,102 @@ Generates `wrangler.jsonc` files from your `bw.config.ts` without starting the d
 ```bash
 bw sync
 ```
+
+### `bw init`
+
+Creates a new `bw.config.ts` file with interactive prompts for worker name, entry point, port, and bindings.
+
+```bash
+# Interactive setup
+bw init
+
+# Overwrite existing config
+bw init --force
+```
+
+### `bw add [resource]`
+
+Adds resources to your existing `bw.config.ts` using AST modification.
+
+```bash
+# Interactive resource selection
+bw add
+
+# Add specific resource types
+bw add d1              # Add a D1 database
+bw add kv              # Add a KV namespace
+bw add r2              # Add an R2 bucket
+bw add do              # Add a Durable Object (alias: durable-object)
+bw add queue           # Add a Queue
+bw add worker          # Add a new worker
+```
+
+### `bw create [type]`
+
+Creates missing Cloudflare resources that are defined in your config but don't exist yet.
+
+```bash
+# Create all missing resources (interactive)
+bw create
+
+# Create only specific resource types
+bw create kv           # Create missing KV namespaces
+bw create d1           # Create missing D1 databases
+bw create r2           # Create missing R2 buckets
+bw create queue        # Create missing Queues
+
+# Create all without prompting
+bw create --all
+
+# Target specific environment
+bw create --env production
+```
+
+### `bw deploy`
+
+Deploys workers to Cloudflare. Automatically runs D1 migrations before deploying.
+
+```bash
+# Deploy (prompts if resources missing)
+bw deploy
+
+# Deploy specific workers
+bw deploy worker-1 worker-2
+
+# Auto-create missing resources, then deploy
+bw deploy --create
+
+# Strict mode: fail if resources missing (for CI/CD)
+bw deploy --no-create
+
+# Preview what would be deployed
+bw deploy --dry-run
+
+# Deploy to specific environment
+bw deploy --env production
+```
+
+## Dev Server Features
+
+The Miniflare-based dev server includes several developer experience features:
+
+### Hot Reload
+
+The dev server watches your source files and automatically rebuilds workers when changes are detected. No manual restart required.
+
+### D1 Migrations
+
+D1 migrations are automatically applied in dev mode:
+- Reads `.sql` files from the `migrationsDir` (default: `./migrations`)
+- Creates a `d1_migrations` tracking table
+- Applies migrations in filename order
+- Tracks applied migrations to avoid re-running
+
+### Config Watching
+
+The dev server watches your `bw.config.ts` file. When you modify bindings or add workers, it automatically:
+- Re-syncs the configuration
+- Restarts Miniflare with the new settings
 
 ## Configuration API
 
@@ -167,7 +273,20 @@ D1({
   name: "my-database",
   id: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 })
+
+// With custom migrations directory
+D1({ 
+  name: "my-database",
+  id: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+  migrationsDir: "./db/migrations"  // default: "./migrations"
+})
 ```
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `name` | `string` | Database name |
+| `id` | `string` | Database ID (required for deployment) |
+| `migrationsDir` | `string` | Path to migrations directory (default: `"./migrations"`) |
 
 ### `R2(options)`
 
@@ -329,6 +448,32 @@ The system will fail with a helpful error if it can't determine whether a remove
 | Rate Limiting | ❌ Not yet supported |
 | Secrets | ❌ Not yet supported |
 | Pipelines | ❌ Not yet supported |
+
+## Programmatic API
+
+better-wrangler exports types and utilities for programmatic usage:
+
+### Binding Types
+
+```typescript
+import type {
+  D1Binding,
+  KVBinding,
+  R2Binding,
+  DurableObjectBinding,
+  QueueProducerBinding,
+  QueueConsumerBinding,
+} from "better-wrangler";
+```
+
+### Worker Types
+
+```typescript
+import type { InferEnv } from "better-wrangler";
+
+// InferEnv extracts the environment type from a worker config
+type MyEnv = InferEnv<typeof myWorker>;
+```
 
 ## License
 
