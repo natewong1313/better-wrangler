@@ -7,6 +7,7 @@ import { addCommand } from "./commands/add";
 import { deployCommand } from "./commands/deploy";
 import { createCommand, type ResourceTypeFilter } from "./commands/create";
 import { createAppCommand } from "./commands/create-app";
+import { versionCommand } from "./commands/version";
 
 interface ExtendedParsedArgs extends ParsedArgs {
   force?: boolean;
@@ -91,6 +92,7 @@ function printHelp() {
   console.log("  dev               Sync configs and run workers in development");
   console.log("  sync              Generate wrangler configs without running");
   console.log("  deploy            Deploy workers to Cloudflare");
+  console.log("  version           Show the CLI version");
   console.log("");
   console.log("Options:");
   console.log("  --force           Overwrite existing config file (init only)");
@@ -120,11 +122,17 @@ function printHelp() {
 async function main() {
   const args = parseArgs();
 
-  const validCommands = ["init", "add", "create", "create-app", "dev", "sync", "deploy"];
+  const validCommands = ["init", "add", "create", "create-app", "dev", "sync", "deploy", "version"];
 
   if (!args.command || !validCommands.includes(args.command)) {
     printHelp();
     process.exit(1);
+  }
+
+  // Version command - no config required
+  if (args.command === "version") {
+    versionCommand();
+    return;
   }
 
   // Commands that don't require an existing config file
