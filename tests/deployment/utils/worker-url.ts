@@ -5,7 +5,8 @@
  */
 
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 
 export interface DeploymentMetadata {
 	example: string;
@@ -14,13 +15,17 @@ export interface DeploymentMetadata {
 	subdomain: string;
 }
 
+// Get the directory of the current file (works in both Node.js and Bun)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
 /**
  * Load deployment metadata for an example
  */
 export async function loadDeploymentMetadata(
 	example: string
 ): Promise<DeploymentMetadata> {
-	const projectRoot = join(import.meta.dir, "../../..");
+	const projectRoot = join(__dirname, "../../..");
 	const metadataPath = join(
 		projectRoot,
 		"examples",
