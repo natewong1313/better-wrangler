@@ -44,7 +44,8 @@
 		"examples/*"
 	],
 	"scripts": {
-		"build": "tsdown",
+		"build:ui": "vite build --config src/devtools/ui/vite.config.ts",
+		"build": "tsdown && bun run build:ui",
 		"prepublishOnly": "bun run build",
 		"changeset": "changeset",
 		"changeset:version": "changeset version",
