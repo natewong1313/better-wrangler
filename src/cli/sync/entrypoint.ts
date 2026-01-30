@@ -4,6 +4,7 @@ import type { WorkerConfig, Bindings } from "../types";
 import type { DurableObjectBinding } from "../../bindings/durable-object";
 import { generateWranglerConfig } from "../../generate";
 import { createLogger } from "../../logger";
+import type { MigrationState } from "../../migrations";
 
 const OUTPUT_DIR = ".better-wrangler";
 const log = createLogger("sync");
@@ -97,13 +98,20 @@ export function generateEntrypoint(worker: WorkerConfig<Bindings>) {
   return entryPath;
 }
 
+export type GenerateWranglerConfigResult = {
+  updatedMigrationState?: MigrationState;
+};
+
 export function generateWranglerConfigFile(
   worker: WorkerConfig<Bindings>,
   configPaths: Map<string, string>,
-) {
-  const { config: wranglerConfig } = generateWranglerConfig(worker, {
+  migrationState?: MigrationState,
+): GenerateWranglerConfigResult {
+  const { config: wranglerConfig, updatedMigrationState } = generateWranglerConfig(worker, {
     observability: { enabled: true },
     port: worker.port,
+    migrationState,
+    deletedDurableObjects: worker._deletedDurableObjects,
   });
 
   // Path is relative to the config file location (.better-wrangler/)
@@ -114,4 +122,6 @@ export function generateWranglerConfigFile(
   configPaths.set(worker.name, configOutputPath);
 
   log.debug(`Generated ${configOutputPath}`);
+
+  return { updatedMigrationState };
 }

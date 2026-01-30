@@ -32,6 +32,11 @@ export type WorkerProps<
   vars?: V;
   triggers?: Triggers;
   compatibility?: Compatibility;
+  /**
+   * Explicitly deleted Durable Object class names.
+   * Required when removing a DO class to distinguish from rename.
+   */
+  _deletedDurableObjects?: string[];
 };
 
 export type WorkerConfig<

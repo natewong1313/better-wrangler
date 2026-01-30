@@ -2,6 +2,7 @@ import { mkdirSync } from "fs";
 import type { SyncResult } from "../types";
 import { loadWorkerConfigs, filterWorkers, validateWorkers } from "./config-loader";
 import { generateEntrypoint, generateWranglerConfigFile } from "./entrypoint";
+import { loadMigrationState, saveMigrationState, type MigrationState } from "../../migrations";
 
 const OUTPUT_DIR = ".better-wrangler";
 
@@ -19,10 +20,26 @@ export async function syncAll(
 
   const configPaths = new Map<string, string>();
 
+  // Load existing migration state
+  const projectRoot = process.cwd();
+  let migrationState: MigrationState = loadMigrationState(projectRoot);
+
   for (const worker of selectedWorkers) {
     generateEntrypoint(worker);
-    generateWranglerConfigFile(worker, configPaths);
+    const { updatedMigrationState } = generateWranglerConfigFile(
+      worker,
+      configPaths,
+      migrationState,
+    );
+
+    // Update state for next worker (migrations are per-worker)
+    if (updatedMigrationState) {
+      migrationState = updatedMigrationState;
+    }
   }
+
+  // Save updated migration state
+  saveMigrationState(projectRoot, migrationState);
 
   return { workers: selectedWorkers, configPaths };
 }

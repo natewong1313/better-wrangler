@@ -207,7 +207,15 @@ export const generateWranglerConfig = <B extends Bindings, V extends Record<stri
     }
 
     // Auto-generate migrations for owned DOs
-    if (ownedDOs.length > 0) {
+    // Run migration logic if:
+    // - There are current owned DOs
+    // - There's existing migration state for this worker (to detect removals)
+    // - There are explicit deletions specified
+    const hasExistingState = options?.migrationState?.workers[worker.name] !== undefined;
+    const hasDeletedDOs = (options?.deletedDurableObjects?.length ?? 0) > 0;
+    const shouldComputeMigrations = ownedDOs.length > 0 || hasExistingState || hasDeletedDOs;
+
+    if (shouldComputeMigrations) {
       if (options?.migrationState) {
         // Use state-based migration management
         const result = computeMigrations(
@@ -225,7 +233,7 @@ export const generateWranglerConfig = <B extends Bindings, V extends Record<stri
           config.migrations = result.migrations;
         }
         updatedMigrationState = result.updatedState;
-      } else {
+      } else if (ownedDOs.length > 0) {
         // Fallback: simple migration without state management
         // Separate by storage type
         const sqliteClasses = ownedDOs
