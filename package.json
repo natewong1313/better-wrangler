@@ -1,6 +1,6 @@
 {
 	"name": "better-wrangler",
-	"version": "0.2.0",
+	"version": "0.2.1",
 	"description": "drop in replacement for wrangler",
 	"author": "natewong1313",
 	"license": "MIT",
