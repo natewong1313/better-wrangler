@@ -89,7 +89,7 @@ async function handleAddWorker(
 ): Promise<void> {
   const existingWorkerNames = configInfo.workers.map((w) => w.name);
 
-  console.log("\n  Adding a new worker\n");
+  log.info("Adding a new worker");
 
   const workerConfig = await promptWorkerConfig(existingWorkerNames);
 
@@ -133,7 +133,7 @@ async function handleAddBinding(
     process.exit(1);
   }
 
-  console.log(`\n  Adding ${getResourceLabel(resourceType)}\n`);
+  log.info(`Adding ${getResourceLabel(resourceType)}`);
 
   // Select worker to add binding to
   const workerName = await promptWorkerSelection(workers);

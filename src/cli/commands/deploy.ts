@@ -22,6 +22,9 @@ import {
 } from "../utils/ast-modifier";
 import { syncAll } from "../sync";
 import { promptConfirm } from "../utils/prompts";
+import { createLogger } from "../../logger";
+
+const log = createLogger("deploy");
 
 export interface DeployOptions {
   env?: string;
@@ -69,7 +72,7 @@ export async function deployCommand(workerFilter: string[], options: DeployOptio
   }
 
   // Sync configs
-  console.log("Syncing configs...");
+  log.info("Syncing configs");
   let syncResult;
   try {
     syncResult = await syncAll(configPath, workerFilter);
@@ -96,8 +99,8 @@ export async function deployCommand(workerFilter: string[], options: DeployOptio
   console.log("");
 
   // Check for missing resources
-  console.log("Checking resources...");
-  const missing = await findMissingResources(workers, options.env, console.log);
+  log.info("Checking resources");
+  const missing = await findMissingResources(workers, options.env, (msg) => log.debug(msg));
   const missingCount = countMissingResources(missing);
 
   if (missingCount > 0) {
@@ -131,10 +134,10 @@ export async function deployCommand(workerFilter: string[], options: DeployOptio
     }
 
     // Create the missing resources
-    console.log("\nCreating resources...");
+    log.info("Creating resources");
     let created: CreatedResource[];
     try {
-      created = await createResources(missing, options.env, console.log);
+      created = await createResources(missing, options.env, (msg) => log.debug(msg));
     } catch (error) {
       console.error(
         `\nError creating resources: ${error instanceof Error ? error.message : String(error)}`,
@@ -145,11 +148,11 @@ export async function deployCommand(workerFilter: string[], options: DeployOptio
     // Update config file with new IDs
     const resourcesWithIds = created.filter((r) => r.id);
     if (resourcesWithIds.length > 0) {
-      console.log("\nUpdating config file...");
+      log.info("Updating config file");
       await updateConfigWithCreatedResources(configPath, workers, resourcesWithIds, options.create);
 
       // Re-sync to pick up the new IDs
-      console.log("\nRe-syncing configs...");
+      log.info("Re-syncing configs");
       try {
         syncResult = await syncAll(configPath, workerFilter, true);
       } catch (error) {
@@ -181,7 +184,7 @@ export async function deployCommand(workerFilter: string[], options: DeployOptio
   // Run D1 migrations
   const migrationResults: MigrationResult[] = [];
   if (allDatabases.size > 0) {
-    console.log("Running D1 migrations...");
+    log.info("Running D1 migrations");
 
     for (const [dbName, dbInfo] of allDatabases) {
       process.stdout.write(`  Migrating ${dbName}...`);
@@ -250,7 +253,7 @@ export async function deployCommand(workerFilter: string[], options: DeployOptio
     return;
   }
 
-  console.log("Deploying workers...");
+  log.info("Deploying workers");
   const deployResults: DeployResult[] = [];
 
   for (const worker of workers) {
@@ -264,7 +267,7 @@ export async function deployCommand(workerFilter: string[], options: DeployOptio
       continue;
     }
 
-    console.log(`\n  Deploying ${worker.name}...`);
+    log.info(`Deploying ${worker.name}`);
 
     const result = await wranglerDeploy({
       configPath: workerConfigPath,
