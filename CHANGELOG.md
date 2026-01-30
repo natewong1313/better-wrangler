@@ -1,5 +1,11 @@
 # better-wrangler
 
+## 0.2.1
+
+### Patch Changes
+
+- 7f9d69c: Fix CLI failing with "Cannot find package 'vite'" when run via bunx. Moved vite, react, and related packages from devDependencies to dependencies since they are required at runtime by the CLI.
+
 ## 0.2.0
 
 ### Minor Changes
