@@ -57,8 +57,9 @@ export class Logger {
 
   /**
    * Broadcast a log entry to all subscribers.
+   * Public to allow external sources (e.g., worker runtime logs) to emit entries.
    */
-  private static broadcast(entry: LogEntry): void {
+  static broadcast(entry: LogEntry): void {
     for (const subscriber of Logger.subscribers) {
       try {
         subscriber(entry);
