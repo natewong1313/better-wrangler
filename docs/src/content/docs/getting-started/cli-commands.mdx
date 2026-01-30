@@ -38,6 +38,20 @@ bw dev
 bw dev --legacy
 ```
 
+### Running Specific Workers
+
+You can start only specific workers by passing their names as arguments:
+
+```bash
+# Start only the api worker
+bw dev api
+
+# Start multiple specific workers
+bw dev api auth
+```
+
+This is useful in large monorepos when you only need to work on certain workers.
+
 ### Port Assignment
 
 Workers are assigned ports starting from 8787. If you have multiple workers, they'll be assigned sequential ports:

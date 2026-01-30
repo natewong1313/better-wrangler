@@ -158,6 +158,10 @@ export default {
 };
 ```
 
+:::note
+Cron triggers are configured for production deployment but are not executed in the local dev server. To test scheduled handlers locally, you can call them directly via HTTP or use `wrangler dev --test-scheduled`.
+:::
+
 ### compatibility
 
 Set compatibility date and flags for your worker.
