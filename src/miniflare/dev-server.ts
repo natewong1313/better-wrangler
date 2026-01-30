@@ -1,10 +1,11 @@
-import { Miniflare, type WorkerOptions } from "miniflare";
+import { Miniflare, type WorkerOptions, type WorkerdStructuredLog } from "miniflare";
 import type { Server } from "http";
 import type { WorkerConfig, Bindings } from "../bindings/worker";
 import { createBundleContext, type BundleContext } from "./bundle";
 import { buildWorkerOptions } from "./worker-options";
 import { createWorkerProxy } from "./proxy";
-import { createLogger } from "../logger";
+import { createLogger, Logger, type LogEntry } from "../logger";
+import type { LogLevel } from "../logger/utils";
 import { applyDevMigrations } from "../cli/dev/migrations";
 
 const LATEST_COMPAT_DATE = "2026-01-20";
@@ -73,6 +74,26 @@ export async function startDevServer(
   // 2: create Miniflare instance
   const mf = new Miniflare({
     workers: buildAllWorkerOptions(),
+    handleStructuredLogs: ({ timestamp, level, message }: WorkerdStructuredLog) => {
+      // Map workerd log levels to our LogLevel type
+      // workerd uses "log" for console.log(), we map it to "info"
+      const logLevelMap: Record<string, LogLevel> = {
+        log: "info",
+        debug: "debug",
+        info: "info",
+        warn: "warn",
+        error: "error",
+      };
+      const mappedLevel = logLevelMap[level] ?? "info";
+
+      const entry: LogEntry = {
+        timestamp: new Date(timestamp).toISOString(),
+        level: mappedLevel,
+        service: "worker",
+        message,
+      };
+      Logger.broadcast(entry);
+    },
   });
   await mf.ready;
 
