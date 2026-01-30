@@ -11,6 +11,20 @@ type Env = InferEnv<typeof worker.bindings>;
 type Task = InferSelectModel<typeof schema.tasks>;
 type NewTask = InferInsertModel<typeof schema.tasks>;
 
+// Sample test tasks for seeding
+const testTasks = [
+  { title: "Set up project structure", completed: true },
+  { title: "Configure Drizzle ORM with D1", completed: true },
+  { title: "Create database schema", completed: true },
+  { title: "Implement CRUD API endpoints", completed: true },
+  { title: "Add input validation", completed: false },
+  { title: "Write unit tests", completed: false },
+  { title: "Add authentication middleware", completed: false },
+  { title: "Set up CI/CD pipeline", completed: false },
+  { title: "Write API documentation", completed: false },
+  { title: "Deploy to production", completed: false },
+];
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
@@ -55,7 +69,7 @@ export default {
         if (!task) {
           return Response.json(
             { error: "Task not found" },
-            { status: 404, headers: corsHeaders }
+            { status: 404, headers: corsHeaders },
           );
         }
 
@@ -69,7 +83,7 @@ export default {
         if (!body.title) {
           return Response.json(
             { error: "Title is required" },
-            { status: 400, headers: corsHeaders }
+            { status: 400, headers: corsHeaders },
           );
         }
 
@@ -84,7 +98,10 @@ export default {
       // PUT /tasks/:id - Update a task
       if (taskMatch && method === "PUT") {
         const id = parseInt(taskMatch[1]);
-        const body = await request.json<{ title?: string; completed?: boolean }>();
+        const body = await request.json<{
+          title?: string;
+          completed?: boolean;
+        }>();
 
         // Check if task exists
         const [existing] = await db
@@ -95,7 +112,7 @@ export default {
         if (!existing) {
           return Response.json(
             { error: "Task not found" },
-            { status: 404, headers: corsHeaders }
+            { status: 404, headers: corsHeaders },
           );
         }
 
@@ -133,7 +150,7 @@ export default {
         if (!existing) {
           return Response.json(
             { error: "Task not found" },
-            { status: 404, headers: corsHeaders }
+            { status: 404, headers: corsHeaders },
           );
         }
 
@@ -141,7 +158,28 @@ export default {
 
         return Response.json(
           { message: "Task deleted", task: existing },
-          { headers: corsHeaders }
+          { headers: corsHeaders },
+        );
+      }
+
+      // GET /seed - Seed database with test data
+      if (path === "/seed" && method === "GET") {
+        // Clear existing tasks
+        await db.delete(schema.tasks);
+
+        // Insert test tasks
+        const inserted = await db
+          .insert(schema.tasks)
+          .values(testTasks)
+          .returning();
+
+        return Response.json(
+          {
+            message: "Database seeded successfully",
+            count: inserted.length,
+            tasks: inserted,
+          },
+          { status: 201, headers: corsHeaders },
         );
       }
 
@@ -153,25 +191,51 @@ export default {
             description: "D1 database with Drizzle ORM for type-safe queries",
             endpoints: [
               { method: "GET", path: "/tasks", description: "List all tasks" },
-              { method: "GET", path: "/tasks/:id", description: "Get a task by ID" },
-              { method: "POST", path: "/tasks", description: "Create a new task", body: { title: "string" } },
-              { method: "PUT", path: "/tasks/:id", description: "Update a task", body: { title: "string?", completed: "boolean?" } },
-              { method: "DELETE", path: "/tasks/:id", description: "Delete a task" },
+              {
+                method: "GET",
+                path: "/tasks/:id",
+                description: "Get a task by ID",
+              },
+              {
+                method: "POST",
+                path: "/tasks",
+                description: "Create a new task",
+                body: { title: "string" },
+              },
+              {
+                method: "PUT",
+                path: "/tasks/:id",
+                description: "Update a task",
+                body: { title: "string?", completed: "boolean?" },
+              },
+              {
+                method: "DELETE",
+                path: "/tasks/:id",
+                description: "Delete a task",
+              },
+              {
+                method: "GET",
+                path: "/seed",
+                description: "Seed database with test data",
+              },
             ],
           },
-          { headers: corsHeaders }
+          { headers: corsHeaders },
         );
       }
 
       return Response.json(
         { error: "Not found" },
-        { status: 404, headers: corsHeaders }
+        { status: 404, headers: corsHeaders },
       );
     } catch (error) {
       console.error("Error:", error);
       return Response.json(
-        { error: error instanceof Error ? error.message : "Internal server error" },
-        { status: 500, headers: corsHeaders }
+        {
+          error:
+            error instanceof Error ? error.message : "Internal server error",
+        },
+        { status: 500, headers: corsHeaders },
       );
     }
   },
