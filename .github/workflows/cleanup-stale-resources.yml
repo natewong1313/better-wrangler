@@ -1,0 +1,61 @@
+name: Cleanup Stale CI Resources
+
+on:
+  # Run every 6 hours
+  schedule:
+    - cron: "0 */6 * * *"
+  # Allow manual trigger
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+jobs:
+  cleanup:
+    name: Cleanup stale resources
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate secrets
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::error::CLOUDFLARE_API_TOKEN secret is not set"
+            exit 1
+          fi
+          if [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::error::CLOUDFLARE_ACCOUNT_ID secret is not set"
+            exit 1
+          fi
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.1.42"
+
+      - name: Cache Bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lockb') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Cleanup stale CI resources
+        run: bun run ci:cleanup --stale
+
+      - name: Report results
+        if: always()
+        run: |
+          echo "Stale resource cleanup completed"
+          echo "Check the logs above for details"

@@ -4,3 +4,5 @@ pre-commit:
       run: bun run lint
     format:
       run: bun run format && git add -u
+    typecheck:
+      run: bun run check-types

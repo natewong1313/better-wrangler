@@ -2,10 +2,10 @@ import {
   Project,
   SourceFile,
   SyntaxKind,
-  CallExpression,
   ObjectLiteralExpression,
   VariableDeclaration,
   Node,
+  type Diagnostic,
 } from "ts-morph";
 import type { BindingConfig, ResourceType } from "./prompts";
 
@@ -61,7 +61,7 @@ export function parseConfigFile(configPath: string): ConfigFileInfo {
   const diagnostics = sourceFile.getPreEmitDiagnostics();
   // Filter to only actual syntax errors (code 1xxx are syntax errors)
   // Exclude module resolution errors (code 2307) and other semantic errors
-  const syntaxErrors = diagnostics.filter((d) => {
+  const syntaxErrors = diagnostics.filter((d: Diagnostic) => {
     const code = d.getCode();
     const category = d.getCategory();
     // Category 1 is Error, but we only want actual syntax errors

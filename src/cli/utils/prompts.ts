@@ -74,7 +74,7 @@ export async function promptNumber(options: {
   const value = await input({
     message: options.message,
     default: options.defaultValue?.toString(),
-    validate: (val) => {
+    validate: (val: string) => {
       const num = parseInt(val, 10);
       if (isNaN(num)) return "Please enter a valid number";
       if (options.min !== undefined && num < options.min) {

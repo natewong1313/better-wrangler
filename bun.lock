@@ -51,6 +51,18 @@
         "ws": "^8.19.0",
       },
     },
+    "examples/d1-database": {
+      "name": "d1-database-example",
+      "version": "1.0.0",
+      "dependencies": {
+        "better-wrangler": "../..",
+      },
+      "devDependencies": {
+        "@cloudflare/workers-types": "^4.20241230.0",
+        "@types/bun": "^1.1.14",
+        "typescript": "^5.7.2",
+      },
+    },
     "examples/kv-cache": {
       "name": "kv-cache",
       "dependencies": {
@@ -633,6 +645,8 @@
     "cookie": ["cookie@1.1.1", "", {}, "sha512-ei8Aos7ja0weRpFzJnEA9UHJ/7XQmqglbRwnf2ATjcB9Wq874VKH9kfjjirM6UhU2/E5fFYadylyhFldcqSidQ=="],
 
     "csstype": ["csstype@3.2.3", "", {}, "sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ=="],
+
+    "d1-database-example": ["d1-database-example@workspace:examples/d1-database"],
 
     "debug": ["debug@4.4.3", "", { "dependencies": { "ms": "^2.1.3" } }, "sha512-RGwwWnwQvkVfavKVt22FGLw+xYSdzARwm0ru6DhTVA3umU5hZc28V3kO4stgYryrTlLpuvgI9GiijltAjNbcqA=="],
 

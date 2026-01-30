@@ -5,6 +5,7 @@ import { createBundleContext, type BundleContext } from "./bundle";
 import { buildWorkerOptions } from "./worker-options";
 import { createWorkerProxy } from "./proxy";
 import { createLogger } from "../logger";
+import { applyDevMigrations } from "../cli/dev/migrations";
 
 const LATEST_COMPAT_DATE = "2026-01-20";
 const DEFAULT_PORT = 8787;
@@ -74,6 +75,10 @@ export async function startDevServer(
     workers: buildAllWorkerOptions(),
   });
   await mf.ready;
+
+  // 2.5: apply D1 migrations before hot reload setup
+  // This ensures migrations run on fresh stubs before any setOptions calls
+  await applyDevMigrations(mf, workers, baseDir);
 
   // 3: set up hot reload
   setupHotReload(mf, workers, bundleState, buildAllWorkerOptions);
