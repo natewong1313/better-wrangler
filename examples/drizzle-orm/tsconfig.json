@@ -6,7 +6,7 @@
     "strict": true,
     "skipLibCheck": true,
     "noEmit": true,
-    "types": ["@cloudflare/workers-types/2023-07-01", "bun"]
+    "types": ["@cloudflare/workers-types", "bun"]
   },
   "include": ["src/**/*.ts", "bw.config.ts", "drizzle.config.ts"]
 }
