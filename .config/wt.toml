@@ -1,0 +1,2 @@
+[post-create]
+install = "bun install"
