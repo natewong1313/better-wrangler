@@ -82,9 +82,11 @@ export async function initCommand(options: InitOptions = {}): Promise<void> {
 
   // Generate the config file
   const configContent = generateConfigFile(workerName, entryPoint, port, bindings);
+  log.debug("Generated config content");
 
   // Write the file
   writeFileSync(configPath, configContent, "utf-8");
+  log.debug(`Wrote config to ${configPath}`);
 
   console.log(`\n✓ Created ${CONFIG_FILENAME}`);
   console.log("\nNext steps:");

@@ -16,6 +16,9 @@ import {
 } from "../utils/ast-modifier";
 import { promptConfirm } from "../utils/prompts";
 import { loadWorkerConfigs } from "../sync/config-loader";
+import { createLogger } from "../../logger";
+
+const log = createLogger("create");
 
 export type ResourceTypeFilter = "kv" | "d1" | "r2" | "queue";
 
@@ -56,8 +59,8 @@ export async function createCommand(
   }
 
   // Find missing resources
-  console.log("Checking resources...");
-  let missing = await findMissingResources(workers, options.env, console.log);
+  log.info("Checking resources");
+  let missing = await findMissingResources(workers, options.env, (msg) => log.debug(msg));
 
   // Filter by resource type if specified
   if (resourceType) {
@@ -90,10 +93,10 @@ export async function createCommand(
   }
 
   // Create resources
-  console.log("\nCreating resources...");
+  log.info("Creating resources");
   let created: CreatedResource[];
   try {
-    created = await createResources(missing, options.env, console.log);
+    created = await createResources(missing, options.env, (msg) => log.debug(msg));
   } catch (error) {
     console.error(`\nError: ${error instanceof Error ? error.message : String(error)}`);
     process.exit(1);
@@ -107,7 +110,7 @@ export async function createCommand(
   // Update config file with new IDs
   const resourcesWithIds = created.filter((r) => r.id);
   if (resourcesWithIds.length > 0) {
-    console.log("\nUpdating config file...");
+    log.info("Updating config file");
     await updateConfigWithCreatedResources(configPath, workers, resourcesWithIds, options.all);
   }
 
