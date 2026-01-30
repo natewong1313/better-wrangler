@@ -5,7 +5,12 @@ export default defineConfig({
 		globals: true,
 		root: ".",
 		include: ["tests/**/*.test.ts"],
-		exclude: ["examples/**", ".better-wrangler/**", "node_modules/**"],
+		exclude: [
+			"examples/**",
+			".better-wrangler/**",
+			"node_modules/**",
+			"tests/deployment/**", // Deployment tests run separately via test:deployment
+		],
 		setupFiles: ["tests/setup.ts"],
 		coverage: {
 			provider: "v8",
