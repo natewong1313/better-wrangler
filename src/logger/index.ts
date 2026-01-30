@@ -9,63 +9,15 @@ import {
 } from "./utils";
 
 /**
- * Log entry type for subscribers.
- */
-export type LogEntry = {
-  timestamp: string;
-  level: LogLevel;
-  service?: string;
-  id?: string;
-  message: string;
-};
-
-/**
- * Subscriber callback type.
- */
-export type LogSubscriber = (entry: LogEntry) => void;
-
-/**
  * Logger class with optional service context.
  */
 export class Logger {
   private service?: string;
   private id?: string;
 
-  // Static subscriber registry for broadcasting logs
-  private static subscribers = new Set<LogSubscriber>();
-
   constructor(service?: string, id?: string) {
     this.service = service;
     this.id = id;
-  }
-
-  /**
-   * Subscribe to all log messages.
-   * @returns Unsubscribe function
-   */
-  static subscribe(fn: LogSubscriber): () => void {
-    Logger.subscribers.add(fn);
-    return () => Logger.unsubscribe(fn);
-  }
-
-  /**
-   * Unsubscribe from log messages.
-   */
-  static unsubscribe(fn: LogSubscriber): void {
-    Logger.subscribers.delete(fn);
-  }
-
-  /**
-   * Broadcast a log entry to all subscribers.
-   */
-  private static broadcast(entry: LogEntry): void {
-    for (const subscriber of Logger.subscribers) {
-      try {
-        subscriber(entry);
-      } catch {
-        // Ignore subscriber errors to prevent logging loops
-      }
-    }
   }
 
   /**
@@ -98,15 +50,6 @@ export class Logger {
     parts.push(message);
 
     const output = parts.join(" ");
-
-    // Broadcast to subscribers
-    Logger.broadcast({
-      timestamp,
-      level,
-      service: this.service,
-      id: this.id,
-      message,
-    });
 
     // Use appropriate console method
     switch (level) {
