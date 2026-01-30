@@ -71,32 +71,29 @@ export async function startDevServer(
       return buildWorkerOptions(worker, script, compatibilityDate);
     });
 
-  // Handler to capture console.log from workers/DOs and broadcast to devtools
-  const handleStructuredLogs = ({ timestamp, level, message }: WorkerdStructuredLog) => {
-    // Map workerd log levels to our LogLevel type
-    // workerd uses "log" for console.log(), we map it to "info"
-    const logLevelMap: Record<string, LogLevel> = {
-      log: "info",
-      debug: "debug",
-      info: "info",
-      warn: "warn",
-      error: "error",
-    };
-    const mappedLevel = logLevelMap[level] ?? "info";
-
-    const entry: LogEntry = {
-      timestamp: new Date(timestamp).toISOString(),
-      level: mappedLevel,
-      service: "worker",
-      message,
-    };
-    Logger.broadcast(entry);
-  };
-
   // 2: create Miniflare instance
   const mf = new Miniflare({
     workers: buildAllWorkerOptions(),
-    handleStructuredLogs,
+    handleStructuredLogs: ({ timestamp, level, message }: WorkerdStructuredLog) => {
+      // Map workerd log levels to our LogLevel type
+      // workerd uses "log" for console.log(), we map it to "info"
+      const logLevelMap: Record<string, LogLevel> = {
+        log: "info",
+        debug: "debug",
+        info: "info",
+        warn: "warn",
+        error: "error",
+      };
+      const mappedLevel = logLevelMap[level] ?? "info";
+
+      const entry: LogEntry = {
+        timestamp: new Date(timestamp).toISOString(),
+        level: mappedLevel,
+        service: "worker",
+        message,
+      };
+      Logger.broadcast(entry);
+    },
   });
   await mf.ready;
 
@@ -105,7 +102,7 @@ export async function startDevServer(
   await applyDevMigrations(mf, workers, baseDir);
 
   // 3: set up hot reload
-  setupHotReload(mf, workers, bundleState, buildAllWorkerOptions, handleStructuredLogs);
+  setupHotReload(mf, workers, bundleState, buildAllWorkerOptions);
 
   // 4: watch files for changes
   await startWatching(bundleState.bundleContexts);
@@ -174,7 +171,6 @@ function setupHotReload(
   workers: WorkerConfig<Bindings, Record<string, string>>[],
   bundleState: BundleState,
   buildAllWorkerOptions: () => WorkerOptions[],
-  handleStructuredLogs: (log: WorkerdStructuredLog) => void,
 ) {
   const { bundledScripts, bundleContexts } = bundleState;
 
@@ -198,10 +194,8 @@ function setupHotReload(
       bundledScripts.set(workerName, script);
 
       // Rebuild all worker options and hot-swap via setOptions
-      // Must include handleStructuredLogs to preserve worker log capture
       await mf.setOptions({
         workers: buildAllWorkerOptions(),
-        handleStructuredLogs,
       });
 
       // Wait for Miniflare to be ready after setOptions

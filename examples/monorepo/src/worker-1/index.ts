@@ -3,7 +3,6 @@ import { worker1 } from "../../bw.config";
 export default {
   async fetch(req: Request, env: typeof worker1.Env): Promise<Response> {
     const url = new URL(req.url);
-    console.log("worker");
 
     if (url.pathname === "/do") {
       const stub = env.DO.getByName("test");
