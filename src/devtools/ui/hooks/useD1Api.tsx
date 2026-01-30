@@ -1,8 +1,29 @@
 import { useState, useCallback } from "react";
 
-declare const __DEVTOOLS_HTTP_PORT__: number;
+declare const __DEVTOOLS_HTTP_PORT__: number | undefined;
 
-const HTTP_PORT = typeof __DEVTOOLS_HTTP_PORT__ !== "undefined" ? __DEVTOOLS_HTTP_PORT__ : 5175;
+/**
+ * Get the HTTP API port from URL params (production) or compile-time constant (development).
+ */
+function getHttpPort(): number {
+  // Check URL params first (used in production with pre-built UI)
+  const params = new URLSearchParams(window.location.search);
+  const urlPort = params.get("httpPort");
+  if (urlPort) {
+    const port = parseInt(urlPort, 10);
+    if (!isNaN(port)) return port;
+  }
+
+  // Fall back to compile-time constant (development with Vite)
+  if (typeof __DEVTOOLS_HTTP_PORT__ !== "undefined") {
+    return __DEVTOOLS_HTTP_PORT__;
+  }
+
+  // Default fallback
+  return 5175;
+}
+
+const HTTP_PORT = getHttpPort();
 const API_BASE = `http://localhost:${HTTP_PORT}`;
 
 export type D1Database = {

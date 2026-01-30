@@ -9,9 +9,30 @@ import type {
 } from "../../server";
 import type { LogEntry } from "../../../logger";
 
-declare const __DEVTOOLS_WS_PORT__: number;
+declare const __DEVTOOLS_WS_PORT__: number | undefined;
 
-const WS_PORT = typeof __DEVTOOLS_WS_PORT__ !== "undefined" ? __DEVTOOLS_WS_PORT__ : 5174;
+/**
+ * Get the WebSocket port from URL params (production) or compile-time constant (development).
+ */
+function getWsPort(): number {
+  // Check URL params first (used in production with pre-built UI)
+  const params = new URLSearchParams(window.location.search);
+  const urlPort = params.get("wsPort");
+  if (urlPort) {
+    const port = parseInt(urlPort, 10);
+    if (!isNaN(port)) return port;
+  }
+
+  // Fall back to compile-time constant (development with Vite)
+  if (typeof __DEVTOOLS_WS_PORT__ !== "undefined") {
+    return __DEVTOOLS_WS_PORT__;
+  }
+
+  // Default fallback
+  return 5174;
+}
+
+const WS_PORT = getWsPort();
 const MAX_LOGS = 1000;
 
 type KVOperationCallback = (success: boolean, error?: string) => void;
