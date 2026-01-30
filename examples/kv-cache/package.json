@@ -1,5 +1,6 @@
 {
   "name": "kv-cache",
+  "private": true,
   "scripts": {
     "dev": "bun run ../../src/cli.ts dev",
     "sync": "bun run ../../src/cli.ts sync",

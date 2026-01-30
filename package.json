@@ -32,7 +32,7 @@
 		}
 	},
 	"files": ["dist"],
-	"workspaces": ["examples/*"],
+	"workspaces": [".", "examples/*"],
 	"scripts": {
 		"build": "tsdown",
 		"prepublishOnly": "bun run build",

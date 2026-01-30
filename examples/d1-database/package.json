@@ -1,5 +1,6 @@
 {
   "name": "d1-database-example",
+  "private": true,
   "version": "1.0.0",
   "scripts": {
     "dev": "bun run ../../src/cli.ts dev",
