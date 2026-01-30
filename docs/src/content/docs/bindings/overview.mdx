@@ -1,0 +1,106 @@
+---
+title: Bindings Overview
+description: Connect your Workers to Cloudflare resources with type-safe bindings
+---
+
+Bindings connect your Cloudflare Workers to resources like databases, storage, and other Workers. better-wrangler provides type-safe binding definitions that generate the correct wrangler configuration and TypeScript types.
+
+## Available Bindings
+
+| Binding                                  | Type Generated         | Description                        |
+| ---------------------------------------- | ---------------------- | ---------------------------------- |
+| [D1](/bindings/d1/)                      | `D1Database`           | SQL database                       |
+| [R2](/bindings/r2/)                      | `R2Bucket`             | Object storage                     |
+| [KV](/bindings/kv/)                      | `KVNamespace`          | Key-value storage                  |
+| [Durable Objects](/bindings/durable-objects/) | `DurableObjectNamespace` | Stateful coordination          |
+| [Queues](/bindings/queues/)              | `Queue` / handler      | Message queues                     |
+
+## How Bindings Work
+
+### 1. Define the Binding
+
+```typescript
+import { D1 } from "better-wrangler";
+
+const db = D1({ name: "my-database" });
+```
+
+### 2. Attach to a Worker
+
+```typescript
+import { Worker, D1 } from "better-wrangler";
+
+const db = D1({ name: "my-database" });
+
+export const api = Worker({
+  name: "api",
+  entryPoint: "./src/index.ts",
+  bindings: { db },
+});
+```
+
+### 3. Use the Inferred Type
+
+```typescript
+import type { Env } from "../bw.config";
+
+export default {
+  async fetch(request: Request, env: Env) {
+    // env.db is typed as D1Database
+    const result = await env.db.prepare("SELECT * FROM users").all();
+    return Response.json(result);
+  },
+};
+```
+
+## Sharing Bindings
+
+The same binding can be used across multiple workers:
+
+```typescript
+import { Worker, D1, KV } from "better-wrangler";
+
+// Shared bindings
+const db = D1({ name: "shared-db" });
+const cache = KV({ name: "shared-cache" });
+
+export const api = Worker({
+  name: "api",
+  entryPoint: "./src/api/index.ts",
+  bindings: { db, cache },
+});
+
+export const admin = Worker({
+  name: "admin",
+  entryPoint: "./src/admin/index.ts",
+  bindings: { db, cache }, // Same bindings
+});
+```
+
+## Binding Names
+
+The key you use when attaching a binding becomes the property name in your environment:
+
+```typescript
+const database = D1({ name: "my-db" });
+
+export const api = Worker({
+  name: "api",
+  entryPoint: "./src/index.ts",
+  bindings: {
+    db: database, // Access as env.db, not env.database
+  },
+});
+```
+
+## Local Development
+
+All bindings work in local development with Miniflare:
+
+- **D1** - Uses a local SQLite database
+- **KV** - Uses local file-based storage
+- **R2** - Uses local file-based storage
+- **Durable Objects** - Run in-memory
+- **Queues** - Work between workers in the same dev server
+
+Data persists in the `.wrangler` directory between dev server restarts.

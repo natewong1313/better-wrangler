@@ -1,0 +1,115 @@
+---
+title: Configuration Overview
+description: Understanding the bw.config.ts file structure
+---
+
+better-wrangler uses a TypeScript configuration file (`bw.config.ts`) to define your Workers and their bindings. This provides full type safety and IntelliSense support in your editor.
+
+## File Location
+
+Place your `bw.config.ts` file in your project root:
+
+```
+my-project/
+├── bw.config.ts      # Configuration file
+├── src/
+│   └── index.ts      # Worker entry point
+├── package.json
+└── wrangler.jsonc    # Auto-generated
+```
+
+## Basic Structure
+
+A configuration file exports one or more Worker definitions:
+
+```typescript
+// bw.config.ts
+import { Worker, D1, KV, type InferEnv } from "better-wrangler";
+
+// Define bindings
+const db = D1({ name: "my-database" });
+const cache = KV({ name: "my-cache" });
+
+// Define and export workers
+export const api = Worker({
+  name: "api",
+  entryPoint: "./src/index.ts",
+  bindings: { db, cache },
+});
+
+// Export type for use in worker code
+export type Env = InferEnv<typeof api>;
+```
+
+## Key Concepts
+
+### Workers
+
+Each `Worker()` call defines a Cloudflare Worker. You can have multiple workers in a single config file:
+
+```typescript
+export const api = Worker({
+  name: "api",
+  entryPoint: "./src/api/index.ts",
+});
+
+export const cron = Worker({
+  name: "cron-worker",
+  entryPoint: "./src/cron/index.ts",
+});
+```
+
+### Bindings
+
+Bindings connect your worker to Cloudflare resources. Define them once, use them in multiple workers:
+
+```typescript
+// Shared binding
+const db = D1({ name: "shared-db" });
+
+export const api = Worker({
+  name: "api",
+  entryPoint: "./src/api/index.ts",
+  bindings: { db },
+});
+
+export const admin = Worker({
+  name: "admin",
+  entryPoint: "./src/admin/index.ts",
+  bindings: { db }, // Same binding in multiple workers
+});
+```
+
+### Type Inference
+
+Use `InferEnv` to get the environment type for your worker:
+
+```typescript
+import { Worker, D1, KV, type InferEnv } from "better-wrangler";
+
+const db = D1({ name: "my-db" });
+const cache = KV({ name: "my-cache" });
+
+export const api = Worker({
+  name: "api",
+  entryPoint: "./src/index.ts",
+  bindings: { db, cache },
+});
+
+export type Env = InferEnv<typeof api>;
+// Env = { db: D1Database; cache: KVNamespace }
+```
+
+## Generated Files
+
+When you run `bw dev` or `bw sync`, better-wrangler generates:
+
+1. **wrangler.jsonc** - Wrangler configuration for each worker
+2. **Migration files** - For Durable Objects (if used)
+
+These files should be committed to version control as they're needed for deployment.
+
+## Next Steps
+
+- See all [Worker Options](/configuration/worker/)
+- Learn about available [Bindings](/bindings/)

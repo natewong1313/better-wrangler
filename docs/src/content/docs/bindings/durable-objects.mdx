@@ -1,0 +1,306 @@
+---
+title: Durable Objects
+description: Stateful serverless objects with strong consistency
+---
+
+Durable Objects provide strongly consistent, stateful coordination for your Workers. Use the `DurableObject()` function to create a binding.
+
+## Basic Usage
+
+```typescript
+import { Worker, DurableObject, type InferEnv } from "better-wrangler";
+
+const counter = DurableObject({
+  name: "counter",
+  className: "Counter",
+  classPath: "./src/counter.ts",
+});
+
+export const api = Worker({
+  name: "api",
+  entryPoint: "./src/index.ts",
+  bindings: { counter },
+});
+
+export type Env = InferEnv<typeof api>;
+```
+
+## Options Reference
+
+| Option         | Type                | Required | Description                                |
+| -------------- | ------------------- | -------- | ------------------------------------------ |
+| `name`         | `string`            | Yes      | Unique name for the Durable Object binding |
+| `className`    | `string`            | Yes      | Name of the Durable Object class           |
+| `classPath`    | `string`            | Yes      | Path to the file containing the class      |
+| `storage`      | `"sqlite"` \| `"kv"` | No       | Storage backend (default: `"sqlite"`)      |
+| `_renamedFrom` | `string`            | No       | Previous class name (for migrations)       |
+
+### name
+
+A unique identifier for this Durable Object binding. This is how you'll reference it in your worker bindings.
+
+```typescript
+const sessions = DurableObject({
+  name: "sessions",
+  className: "SessionManager",
+  classPath: "./src/session.ts",
+});
+```
+
+### className
+
+The exact name of your Durable Object class as exported from the file.
+
+```typescript
+// src/counter.ts
+export class Counter extends DurableObject {
+  // ...
+}
+```
+
+```typescript
+// bw.config.ts
+const counter = DurableObject({
+  name: "counter",
+  className: "Counter", // Must match the exported class name
+  classPath: "./src/counter.ts",
+});
+```
+
+### classPath
+
+Path to the file containing your Durable Object class, relative to the config file.
+
+```typescript
+const counter = DurableObject({
+  name: "counter",
+  className: "Counter",
+  classPath: "./src/durable-objects/counter.ts",
+});
+```
+
+### storage
+
+Choose the storage backend for your Durable Object:
+
+- `"sqlite"` (default) - SQLite-based storage with SQL query support
+- `"kv"` - Key-value storage (legacy)
+
+```typescript
+const counter = DurableObject({
+  name: "counter",
+  className: "Counter",
+  classPath: "./src/counter.ts",
+  storage: "sqlite", // Use SQLite storage
+});
+```
+
+### _renamedFrom
+
+Used when renaming a Durable Object class. This ensures existing instances are migrated to the new class name.
+
+```typescript
+const counter = DurableObject({
+  name: "counter",
+  className: "CounterV2",
+  classPath: "./src/counter.ts",
+  _renamedFrom: "Counter", // Migrate from old class name
+});
+```
+
+## Creating a Durable Object Class
+
+```typescript
+// src/counter.ts
+import { DurableObject } from "cloudflare:workers";
+
+export class Counter extends DurableObject {
+  private value: number = 0;
+
+  constructor(ctx: DurableObjectState, env: Env) {
+    super(ctx, env);
+  }
+
+  async increment(): Promise<number> {
+    this.value++;
+    await this.ctx.storage.put("value", this.value);
+    return this.value;
+  }
+
+  async getValue(): Promise<number> {
+    return (await this.ctx.storage.get<number>("value")) ?? 0;
+  }
+
+  // Handle HTTP requests to this Durable Object
+  async fetch(request: Request): Promise<Response> {
+    const url = new URL(request.url);
+
+    if (url.pathname === "/increment") {
+      const value = await this.increment();
+      return Response.json({ value });
+    }
+
+    if (url.pathname === "/value") {
+      const value = await this.getValue();
+      return Response.json({ value });
+    }
+
+    return new Response("Not Found", { status: 404 });
+  }
+}
+```
+
+## Using in Your Worker
+
+The binding is available as a `DurableObjectNamespace` type:
+
+```typescript
+import type { Env } from "../bw.config";
+
+export default {
+  async fetch(request: Request, env: Env) {
+    // Get a Durable Object stub by ID
+    const id = env.counter.idFromName("global-counter");
+    const stub = env.counter.get(id);
+
+    // Forward the request to the Durable Object
+    return stub.fetch(request);
+  },
+};
+```
+
+## ID Strategies
+
+### idFromName
+
+Create a deterministic ID from a string. Same name always returns the same ID.
+
+```typescript
+// All requests with "user-123" go to the same Durable Object instance
+const id = env.counter.idFromName("user-123");
+```
+
+### newUniqueId
+
+Generate a new unique ID. Each call creates a new Durable Object instance.
+
+```typescript
+const id = env.counter.newUniqueId();
+```
+
+### idFromString
+
+Parse an ID from its string representation (useful for storing/retrieving IDs).
+
+```typescript
+const idString = "abc123..."; // Previously stored ID
+const id = env.counter.idFromString(idString);
+```
+
+## Cross-Worker Durable Objects
+
+One of better-wrangler's key features is seamless cross-worker Durable Object bindings:
+
+```typescript
+import { Worker, DurableObject } from "better-wrangler";
+
+// Define a shared Durable Object
+const sessions = DurableObject({
+  name: "sessions",
+  className: "SessionManager",
+  classPath: "./src/session.ts",
+});
+
+// Worker that owns the Durable Object
+export const authWorker = Worker({
+  name: "auth",
+  entryPoint: "./src/auth/index.ts",
+  bindings: { sessions },
+});
+
+// Another worker that uses the same Durable Object
+export const apiWorker = Worker({
+  name: "api",
+  entryPoint: "./src/api/index.ts",
+  bindings: { sessions }, // Same binding, automatically configured
+});
+```
+
+better-wrangler automatically:
+- Detects which worker "owns" the Durable Object (the one with the class file)
+- Configures script_name for cross-worker references
+- Generates correct wrangler.jsonc for both workers
+
+## Automatic Migrations
+
+better-wrangler automatically manages Durable Object migrations. When you:
+
+1. Add a new Durable Object class
+2. Rename a class (using `_renamedFrom`)
+3. Delete a class
+
+The migration configuration in `wrangler.jsonc` is automatically updated.
+
+See the [Automatic Migrations](/guides/migrations/) guide for more details.
+
+## Example: Real-Time Counter
+
+```typescript
+// bw.config.ts
+import { Worker, DurableObject, type InferEnv } from "better-wrangler";
+
+const counter = DurableObject({
+  name: "counter",
+  className: "Counter",
+  classPath: "./src/counter.ts",
+});
+
+export const api = Worker({
+  name: "counter-api",
+  entryPoint: "./src/index.ts",
+  bindings: { counter },
+});
+
+export type Env = InferEnv<typeof api>;
+```
+
+```typescript
+// src/counter.ts
+import { DurableObject } from "cloudflare:workers";
+
+export class Counter extends DurableObject {
+  async fetch(request: Request): Promise<Response> {
+    const url = new URL(request.url);
+
+    if (request.method === "POST" && url.pathname === "/increment") {
+      const current = (await this.ctx.storage.get<number>("count")) ?? 0;
+      await this.ctx.storage.put("count", current + 1);
+      return Response.json({ count: current + 1 });
+    }
+
+    if (request.method === "GET") {
+      const count = (await this.ctx.storage.get<number>("count")) ?? 0;
+      return Response.json({ count });
+    }
+
+    return new Response("Method Not Allowed", { status: 405 });
+  }
+}
+```
+
+```typescript
+// src/index.ts
+import type { Env } from "../bw.config";
+
+export default {
+  async fetch(request: Request, env: Env) {
+    const url = new URL(request.url);
+    const counterId = url.searchParams.get("id") ?? "default";
+
+    const id = env.counter.idFromName(counterId);
+    const stub = env.counter.get(id);
+
+    return stub.fetch(request);
+  },
+};
+```

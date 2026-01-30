@@ -1,0 +1,322 @@
+---
+title: Type Inference
+description: Leveraging TypeScript for fully typed Worker environments
+---
+
+One of better-wrangler's key features is automatic type inference for your Worker environment. This guide covers how to use `InferEnv` and best practices for type-safe Workers.
+
+## Basic Usage
+
+Use `InferEnv` to extract the environment type from a Worker configuration:
+
+```typescript
+// bw.config.ts
+import { Worker, D1, KV, type InferEnv } from "better-wrangler";
+
+const db = D1({ name: "my-db" });
+const cache = KV({ name: "my-cache" });
+
+export const api = Worker({
+  name: "api",
+  entryPoint: "./src/index.ts",
+  bindings: { db, cache },
+});
+
+export type Env = InferEnv<typeof api>;
+// Env = { db: D1Database; cache: KVNamespace }
+```
+
+Then use the type in your worker:
+
+```typescript
+// src/index.ts
+import type { Env } from "../bw.config";
+
+export default {
+  async fetch(request: Request, env: Env) {
+    // env.db is D1Database
+    // env.cache is KVNamespace
+    // Full IntelliSense support!
+    
+    const result = await env.db.prepare("SELECT * FROM users").all();
+    return Response.json(result);
+  },
+};
+```
+
+## Type Mapping
+
+Each binding type maps to a specific Cloudflare type:
+
+| Binding              | TypeScript Type            |
+| -------------------- | -------------------------- |
+| `D1()`               | `D1Database`               |
+| `R2()`               | `R2Bucket`                 |
+| `KV()`               | `KVNamespace`              |
+| `DurableObject()`    | `DurableObjectNamespace`   |
+| `QueueProducer()`    | `Queue`                    |
+| `QueueConsumer()`    | (handler configuration)    |
+
+## Multiple Workers
+
+When you have multiple workers, export separate types for each:
+
+```typescript
+// bw.config.ts
+import { Worker, D1, KV, R2, type InferEnv } from "better-wrangler";
+
+const db = D1({ name: "shared-db" });
+const cache = KV({ name: "shared-cache" });
+const storage = R2({ name: "uploads" });
+
+export const api = Worker({
+  name: "api",
+  entryPoint: "./src/api/index.ts",
+  bindings: { db, cache },
+});
+
+export const admin = Worker({
+  name: "admin",
+  entryPoint: "./src/admin/index.ts",
+  bindings: { db, cache, storage },
+});
+
+// Export types for each worker
+export type ApiEnv = InferEnv<typeof api>;
+export type AdminEnv = InferEnv<typeof admin>;
+```
+
+```typescript
+// src/api/index.ts
+import type { ApiEnv } from "../../bw.config";
+
+export default {
+  async fetch(request: Request, env: ApiEnv) {
+    // env.db and env.cache available
+    // env.storage is NOT available (type error)
+  },
+};
+```
+
+```typescript
+// src/admin/index.ts
+import type { AdminEnv } from "../../bw.config";
+
+export default {
+  async fetch(request: Request, env: AdminEnv) {
+    // env.db, env.cache, and env.storage all available
+  },
+};
+```
+
+## Including Environment Variables
+
+Environment variables defined with `vars` are also included in the inferred type:
+
+```typescript
+const api = Worker({
+  name: "api",
+  entryPoint: "./src/index.ts",
+  bindings: { db },
+  vars: {
+    API_KEY: "secret",
+    DEBUG: "true",
+  },
+});
+
+type Env = InferEnv<typeof api>;
+// Env = { db: D1Database; API_KEY: string; DEBUG: string }
+```
+
+## Scheduled Workers
+
+For workers with cron triggers, you'll want to type the `scheduled` handler:
+
+```typescript
+// bw.config.ts
+export const cron = Worker({
+  name: "cron",
+  entryPoint: "./src/cron/index.ts",
+  bindings: { db },
+  triggers: {
+    crons: ["0 * * * *"],
+  },
+});
+
+export type CronEnv = InferEnv<typeof cron>;
+```
+
+```typescript
+// src/cron/index.ts
+import type { CronEnv } from "../bw.config";
+
+export default {
+  async scheduled(
+    event: ScheduledEvent,
+    env: CronEnv,
+    ctx: ExecutionContext
+  ) {
+    // env.db is typed
+    await env.db.prepare("DELETE FROM logs WHERE created_at < ?")
+      .bind(Date.now() - 86400000)
+      .run();
+  },
+};
+```
+
+## Queue Handlers
+
+For queue consumers, type the `queue` handler:
+
+```typescript
+// bw.config.ts
+import { Worker, QueueConsumer, type InferEnv } from "better-wrangler";
+
+const taskConsumer = QueueConsumer({
+  queue: "tasks",
+});
+
+export const worker = Worker({
+  name: "worker",
+  entryPoint: "./src/worker/index.ts",
+  bindings: { taskConsumer },
+});
+
+export type WorkerEnv = InferEnv<typeof worker>;
+```
+
+```typescript
+// src/worker/index.ts
+import type { WorkerEnv } from "../bw.config";
+
+interface TaskMessage {
+  type: "process" | "cleanup";
+  id: string;
+}
+
+export default {
+  async queue(
+    batch: MessageBatch<TaskMessage>,
+    env: WorkerEnv
+  ) {
+    for (const message of batch.messages) {
+      // message.body is typed as TaskMessage
+      console.log(message.body.type, message.body.id);
+      message.ack();
+    }
+  },
+};
+```
+
+## Durable Object Classes
+
+When creating Durable Object classes, you can use the environment type:
+
+```typescript
+// bw.config.ts
+import { Worker, D1, DurableObject, type InferEnv } from "better-wrangler";
+
+const db = D1({ name: "my-db" });
+
+const counter = DurableObject({
+  name: "counter",
+  className: "Counter",
+  classPath: "./src/counter.ts",
+});
+
+export const api = Worker({
+  name: "api",
+  entryPoint: "./src/index.ts",
+  bindings: { db, counter },
+});
+
+export type Env = InferEnv<typeof api>;
+```
+
+```typescript
+// src/counter.ts
+import { DurableObject } from "cloudflare:workers";
+import type { Env } from "../bw.config";
+
+export class Counter extends DurableObject<Env> {
+  constructor(ctx: DurableObjectState, env: Env) {
+    super(ctx, env);
+    // this.env.db is typed as D1Database
+  }
+
+  async fetch(request: Request): Promise<Response> {
+    // Access environment bindings
+    const result = await this.env.db
+      .prepare("SELECT count FROM counters WHERE id = ?")
+      .bind(this.ctx.id.toString())
+      .first();
+    
+    return Response.json(result);
+  }
+}
+```
+
+## Best Practices
+
+### 1. Export Types from Config
+
+Always export your environment types from `bw.config.ts`:
+
+```typescript
+// Good: centralized type exports
+export type ApiEnv = InferEnv<typeof api>;
+export type AdminEnv = InferEnv<typeof admin>;
+```
+
+### 2. Use `type` Imports
+
+Use `import type` to avoid bundling the config file:
+
+```typescript
+// Good: type-only import
+import type { Env } from "../bw.config";
+
+// Avoid: regular import
+import { Env } from "../bw.config";
+```
+
+### 3. Name Bindings Clearly
+
+Choose binding names that make sense in the env object:
+
+```typescript
+// Good: clear naming
+bindings: {
+  db,           // env.db
+  cache,        // env.cache
+  userStorage,  // env.userStorage
+}
+
+// Avoid: unclear names
+bindings: {
+  d1,    // What database?
+  kv1,   // What's stored here?
+  r2,    // What files?
+}
+```
+
+### 4. Create Type Aliases for Handlers
+
+For complex handlers, create type aliases:
+
+```typescript
+import type { Env } from "../bw.config";
+
+type FetchHandler = ExportedHandlerFetchHandler<Env>;
+type ScheduledHandler = ExportedHandlerScheduledHandler<Env>;
+
+export default {
+  fetch: (async (request, env, ctx) => {
+    // ...
+  }) satisfies FetchHandler,
+  
+  scheduled: (async (event, env, ctx) => {
+    // ...
+  }) satisfies ScheduledHandler,
+};
+```

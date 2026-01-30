@@ -30,8 +30,11 @@
 		}
 	},
 	"files": ["dist"],
-	"workspaces": ["examples/*"],
+	"workspaces": ["examples/*", "docs"],
 	"scripts": {
+		"docs:dev": "bun run --cwd docs dev",
+		"docs:build": "bun run --cwd docs build",
+		"docs:preview": "bun run --cwd docs preview",
 		"build": "tsdown",
 		"prepublishOnly": "bun run build",
 		"dev": "bun run src/cli.ts dev",

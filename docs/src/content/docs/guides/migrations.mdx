@@ -1,0 +1,277 @@
+---
+title: Automatic Migrations
+description: How better-wrangler manages Durable Object migrations
+---
+
+Cloudflare Durable Objects require migration configuration when you add, rename, or delete classes. better-wrangler handles this automatically.
+
+## How It Works
+
+When you run `bw dev` or `bw sync`, better-wrangler:
+
+1. Scans your configuration for Durable Object bindings
+2. Compares against the previous state (stored in migration files)
+3. Generates the correct migration configuration in `wrangler.jsonc`
+4. Updates migration tracking files
+
+You don't need to manually configure migrations in your wrangler config.
+
+## Adding a New Durable Object
+
+When you add a new Durable Object, better-wrangler automatically generates a "new_classes" migration:
+
+```typescript
+// bw.config.ts
+const counter = DurableObject({
+  name: "counter",
+  className: "Counter",
+  classPath: "./src/counter.ts",
+});
+
+export const api = Worker({
+  name: "api",
+  entryPoint: "./src/index.ts",
+  bindings: { counter },
+});
+```
+
+Generated migration in `wrangler.jsonc`:
+
+```json
+{
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_classes": ["Counter"]
+    }
+  ]
+}
+```
+
+## Renaming a Durable Object
+
+Use the `_renamedFrom` option to rename a class while preserving existing data:
+
+```typescript
+const counter = DurableObject({
+  name: "counter",
+  className: "CounterV2",           // New name
+  classPath: "./src/counter.ts",
+  _renamedFrom: "Counter",          // Old name
+});
+```
+
+Generated migration:
+
+```json
+{
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_classes": ["Counter"]
+    },
+    {
+      "tag": "v2",
+      "renamed_classes": [
+        { "from": "Counter", "to": "CounterV2" }
+      ]
+    }
+  ]
+}
+```
+
+:::caution
+After deploying a rename migration, remove the `_renamedFrom` property. It's only needed during the migration transition.
+:::
+
+## Deleting a Durable Object
+
+When you remove a Durable Object from your configuration, better-wrangler generates a "deleted_classes" migration:
+
+```typescript
+// Before: counter binding exists
+// After: counter binding removed
+
+export const api = Worker({
+  name: "api",
+  entryPoint: "./src/index.ts",
+  bindings: {
+    // counter removed
+  },
+});
+```
+
+Generated migration:
+
+```json
+{
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_classes": ["Counter"]
+    },
+    {
+      "tag": "v2",
+      "deleted_classes": ["Counter"]
+    }
+  ]
+}
+```
+
+## Migration Tags
+
+Migrations are identified by tags (e.g., "v1", "v2"). better-wrangler auto-increments these tags as you make changes.
+
+The migration history is cumulative - each tag represents a point-in-time snapshot of your Durable Object configuration.
+
+## Multiple Durable Objects
+
+better-wrangler handles multiple Durable Objects in the same migration:
+
+```typescript
+const counter = DurableObject({
+  name: "counter",
+  className: "Counter",
+  classPath: "./src/counter.ts",
+});
+
+const session = DurableObject({
+  name: "session",
+  className: "SessionManager",
+  classPath: "./src/session.ts",
+});
+
+const rateLimiter = DurableObject({
+  name: "limiter",
+  className: "RateLimiter",
+  classPath: "./src/rate-limiter.ts",
+});
+
+export const api = Worker({
+  name: "api",
+  entryPoint: "./src/index.ts",
+  bindings: { counter, session, limiter: rateLimiter },
+});
+```
+
+Generated migration:
+
+```json
+{
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_classes": ["Counter", "SessionManager", "RateLimiter"]
+    }
+  ]
+}
+```
+
+## Cross-Worker Durable Objects
+
+When a Durable Object is used across multiple workers, better-wrangler ensures:
+
+1. Migrations are only defined in the "owner" worker (the one with the class file)
+2. Other workers get the correct `script_name` reference
+
+```typescript
+const sessions = DurableObject({
+  name: "sessions",
+  className: "SessionManager",
+  classPath: "./src/auth/session.ts", // In auth worker's directory
+});
+
+export const auth = Worker({
+  name: "auth",
+  entryPoint: "./src/auth/index.ts",
+  bindings: { sessions }, // Owner - gets migrations
+});
+
+export const api = Worker({
+  name: "api",
+  entryPoint: "./src/api/index.ts",
+  bindings: { sessions }, // Reference - gets script_name
+});
+```
+
+Auth worker's `wrangler.jsonc`:
+```json
+{
+  "durable_objects": {
+    "bindings": [
+      { "name": "sessions", "class_name": "SessionManager" }
+    ]
+  },
+  "migrations": [...]
+}
+```
+
+API worker's `wrangler.jsonc`:
+```json
+{
+  "durable_objects": {
+    "bindings": [
+      { 
+        "name": "sessions", 
+        "class_name": "SessionManager",
+        "script_name": "auth"
+      }
+    ]
+  }
+}
+```
+
+## Storage Type Changes
+
+If you change a Durable Object's storage type, this is handled as a new class:
+
+```typescript
+// Changing from KV to SQLite storage
+const counter = DurableObject({
+  name: "counter",
+  className: "CounterSQLite",
+  classPath: "./src/counter.ts",
+  storage: "sqlite",              // Changed from default
+  _renamedFrom: "Counter",        // Migrate from old class
+});
+```
+
+## Best Practices
+
+### 1. Commit Generated Files
+
+Always commit the generated `wrangler.jsonc` and migration files. These are needed for production deployments.
+
+### 2. Test Migrations Locally
+
+Run `bw dev` after making Durable Object changes to verify migrations are generated correctly.
+
+### 3. Deploy Incrementally
+
+When making multiple Durable Object changes:
+
+1. Make one change at a time
+2. Run `bw sync` to generate migrations
+3. Deploy and verify
+4. Repeat for next change
+
+### 4. Clean Up Renames
+
+After successfully deploying a rename:
+
+```typescript
+// Before deploy
+const counter = DurableObject({
+  name: "counter",
+  className: "CounterV2",
+  classPath: "./src/counter.ts",
+  _renamedFrom: "Counter",
+});
+
+// After successful deploy, remove _renamedFrom
+const counter = DurableObject({
+  name: "counter",
+  className: "CounterV2",
+  classPath: "./src/counter.ts",
+});
+```
